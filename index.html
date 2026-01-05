@@ -34,17 +34,21 @@ th{font-size:12px;color:var(--muted)}
 /* Dateline */
 .dateline{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .insert{
-  width:34px;min-height:72px;border:2px dashed var(--border);border-radius:12px;
+  width:34px;min-height:86px;border:2px dashed var(--border);border-radius:12px;
   display:flex;align-items:center;justify-content:center;font-weight:900;color:var(--accent)
 }
 .insert.active{cursor:pointer;border-color:var(--accent)}
 .cardBox{
-  min-width:160px;border:1px solid var(--border);border-radius:12px;padding:10px;background:#fff
+  min-width:180px;max-width:240px;border:1px solid var(--border);border-radius:12px;padding:10px;background:#fff;
+  display:flex;flex-direction:column;gap:6px
 }
 .cardTitle{font-weight:900}
-.cardMeta{font-size:12px;color:var(--muted)}
-.removeMini{margin-top:6px;border:0;border-radius:999px;padding:6px 10px;
-  background:#fee2e2;color:#991b1b;font-weight:900;cursor:pointer;font-size:12px}
+.cardMeta{font-size:12px;color:var(--muted);line-height:1.25}
+.removeMini{
+  margin-top:auto;border:0;border-radius:999px;padding:6px 10px;
+  background:#fee2e2;color:#991b1b;font-weight:900;cursor:pointer;font-size:12px
+}
+.small{font-size:12px;color:var(--muted)}
 </style>
 </head>
 
@@ -82,8 +86,10 @@ th{font-size:12px;color:var(--muted)}
 
   <h4>Current card</h4>
   <div id="cardName">—</div>
-  <div class="pillDark" id="cardStage">—</div>
-  <div class="pillDark" id="cardUnit">—</div>
+  <div class="row" style="margin-top:6px;">
+    <span class="pillDark" id="cardStage">—</span>
+    <span class="pillDark" id="cardUnit">—</span>
+  </div>
   <p id="cardDesc" class="muted">Click Draw to start.</p>
 
   <div class="row">
@@ -93,12 +99,13 @@ th{font-size:12px;color:var(--muted)}
     <button class="secondary" id="resetBtn">Reset room</button>
   </div>
 
-  <div id="feedback">—</div>
+  <div id="feedback" style="margin-top:10px;">—</div>
 </section>
 
 <!-- RIGHT -->
 <section class="card">
   <strong>Dateline (low → high impact)</strong>
+  <div class="small">Click a <b>+</b> to insert the hidden card. Reveal decides outcome. Remove is available per card.</div>
   <div class="dateline" id="dateline"></div>
 </section>
 
@@ -112,14 +119,23 @@ const SHEET =
 "https://docs.google.com/spreadsheets/d/e/2PACX-1vT5Pe5AfNwQ8NPGoaKIODSi8aIz7vEnRToALhtfOcxnldJ4fDgXaIGYZNd6lCFYwa0lpEUkuqu9TchH/pub?gid=0&single=true&output=csv";
 
 /* ROOM */
-const room = new URLSearchParams(location.search).get("room") || "G1";
+const room = (new URLSearchParams(location.search).get("room") || "G1")
+  .replace(/[^a-zA-Z0-9_-]/g,"").slice(0,24) || "G1";
 document.getElementById("roomLabel").textContent = room;
 const key = k => `LCA_${room}_${k}`;
 
 /* STATE */
-let CARDS=[], deck=[], dateline=[], current=null, insertAt=null;
-let phase="ready", round=0;
-let players=[], turn=0, scores={};
+let CARDS = [];
+let deck = [];          // array of card objects (shuffled)
+let dateline = [];      // array of card objects in order
+let current = null;     // card object in hand / inserted
+let insertAt = null;    // index where inserted
+let phase = "ready";    // ready | holding | inserted | turn_done
+let round = 0;
+
+let players = [];
+let turn = 0;
+let scores = {};
 
 /* HELPERS */
 const $=id=>document.getElementById(id);
@@ -128,139 +144,270 @@ const parsePlayers=t=>t.split(",").map(x=>x.trim()).filter(Boolean).slice(0,7);
 
 /* CSV */
 function parseCSV(t){
- let r=[],c="",row=[],q=false;
- for(let i=0;i<t.length;i++){
-  let ch=t[i],n=t[i+1];
-  if(ch=='"'&&q&&n=='"'){c+='"';i++;continue}
-  if(ch=='"'){q=!q;continue}
-  if(ch==","&&!q){row.push(c);c="";continue}
-  if((ch=="\n"||ch=="\r")&&!q){if(row.length){row.push(c);r.push(row)}row=[];c="";continue}
-  c+=ch;
- }
- if(row.length){row.push(c);r.push(row)}
- return r;
+  let r=[],c="",row=[],q=false;
+  for(let i=0;i<t.length;i++){
+    let ch=t[i],n=t[i+1];
+    if(ch=='"'&&q&&n=='"'){c+='"';i++;continue}
+    if(ch=='"'){q=!q;continue}
+    if(ch==","&&!q){row.push(c);c="";continue}
+    if((ch=="\n"||ch=="\r")&&!q){
+      if(row.length){row.push(c);r.push(row)}
+      row=[];c="";continue
+    }
+    c+=ch;
+  }
+  if(row.length){row.push(c);r.push(row)}
+  return r;
 }
 
 /* LOAD */
 async function loadCards(){
- const t=await fetch(SHEET).then(r=>r.text());
- const rows=parseCSV(t), h=rows[0];
- const i=n=>h.indexOf(n);
- return rows.slice(1).map(r=>({
-  id:r[i("Card_ID")], name:r[i("Title")],
-  unit:r[i("Functional_Unit")], stage:r[i("System_Boundary")],
-  desc:r[i("Short_Description")], gwp:Number(r[i("Impact_Value")])
- })).filter(c=>c.id && !isNaN(c.gwp));
+  const t = await fetch(SHEET).then(r=>r.text());
+  const rows = parseCSV(t);
+  const h = rows[0].map(x => (x||"").trim());
+  const i = n => h.indexOf(n);
+
+  const cards = rows.slice(1).map(r=>({
+    id: (r[i("Card_ID")]||"").trim(),
+    name: (r[i("Title")]||"").trim(),
+    unit: (r[i("Functional_Unit")]||"").trim(),
+    stage: (r[i("System_Boundary")]||"").trim(),
+    desc: (r[i("Short_Description")]||"").trim(),
+    gwp: Number((r[i("Impact_Value")]||"").trim())
+  })).filter(c=>c.id && c.name && !isNaN(c.gwp));
+
+  // de-duplicate by id
+  const seen = new Set();
+  return cards.filter(c => (seen.has(c.id) ? false : (seen.add(c.id), true)));
 }
 
-/* RULE */
-function correct(idx,c){
- const L=idx>0?dateline[idx-1]:null;
- const R=idx<dateline.length-1?dateline[idx+1]:null;
- if(L && L.gwp>c.gwp) return false;
- if(R && R.gwp<c.gwp) return false;
- return true;
+/* RULE: local consistency with immediate neighbors */
+function correct(idx, c){
+  const L = idx>0 ? dateline[idx-1] : null;
+  const R = idx<dateline.length-1 ? dateline[idx+1] : null;
+  if(L && L.gwp > c.gwp) return false;
+  if(R && R.gwp < c.gwp) return false;
+  return true;
 }
 
-/* FLOW */
+/* ANCHOR card revealed at start (no points) */
 function startAnchor(){
- if(dateline.length===0 && deck.length){
-  dateline.push(deck.pop());
- }
+  if(dateline.length===0 && deck.length){
+    dateline.push(deck.pop());
+  }
 }
 
+/* ACTIONS */
 function draw(){
- if(phase!=="ready"||!deck.length||dateline.length>=TARGET) return;
- current=deck.pop(); insertAt=null; phase="holding"; round++;
- render();
+  if(phase!=="ready" || !deck.length || dateline.length>=TARGET) return;
+  current = deck.pop();
+  insertAt = null;
+  phase = "holding";
+  round++;
+  render();
 }
 
 function insert(idx){
- if(phase!=="holding") return;
- dateline.splice(idx,0,current);
- insertAt=idx; phase="inserted";
- render();
+  if(phase!=="holding" || !current) return;
+  dateline.splice(idx, 0, current);
+  insertAt = idx;
+  phase = "inserted";
+  render();
 }
 
 function reveal(){
- if(phase!=="inserted") return;
- const ok=correct(insertAt,current);
- if(ok){
-  scores[players[turn]]=(scores[players[turn]]||0)+1;
-  $("feedback").innerHTML="<span class='ok'>Correct +1</span>";
- }else{
-  $("feedback").innerHTML="<span class='bad'>Incorrect (0)</span>";
- }
- current=null; insertAt=null; phase="turn_done";
- render();
+  if(phase!=="inserted" || !current || insertAt===null) return;
+
+  const ok = correct(insertAt, current);
+
+  if(ok){
+    const player = players[turn];
+    if(player) scores[player] = (scores[player]||0) + 1;
+    $("feedback").innerHTML = `<span class="ok">Correct (+1)</span> — GWP: ${current.gwp}`;
+  } else {
+    $("feedback").innerHTML = `<span class="bad">Incorrect (0)</span> — GWP: ${current.gwp}`;
+  }
+
+  // End turn. IMPORTANT: we keep the card (even if wrong) because moderator may remove manually.
+  current = null;
+  insertAt = null;
+  phase = "turn_done";
+  render();
 }
 
 function nextPlayer(){
- if(phase!=="turn_done") return;
- turn=(turn+1)%players.length;
- phase="ready";
- $("feedback").textContent="—";
- render();
+  if(phase!=="turn_done") return;
+  if(players.length){
+    turn = (turn + 1) % players.length;
+  }
+  phase = "ready";
+  $("feedback").textContent = "—";
+  render();
+}
+
+/* Remove any card from dateline (moderator) */
+function removeFromDateline(index){
+  if(index < 0 || index >= dateline.length) return;
+
+  // Keep it safe: during holding/inserted we don't allow removing to avoid breaking insertion flow.
+  // (button will be disabled in UI during those phases)
+  const removed = dateline.splice(index, 1)[0];
+  if(removed){
+    deck.push(removed);
+    deck = shuffle(deck);
+  }
+  render();
 }
 
 /* RENDER */
+function renderCurrentPanel(){
+  if(!current){
+    $("cardName").textContent = "—";
+    $("cardStage").textContent = "—";
+    $("cardUnit").textContent = "—";
+    $("cardDesc").textContent = (phase==="ready")
+      ? "Click Draw to start your turn."
+      : "—";
+    return;
+  }
+  $("cardName").textContent = current.name;
+  $("cardStage").textContent = current.stage || "—";
+  $("cardUnit").textContent = current.unit || "—";
+
+  if(phase==="holding"){
+    $("cardDesc").textContent = (current.desc || "") + " (GWP hidden)";
+  } else if(phase==="inserted"){
+    $("cardDesc").textContent = "Inserted (GWP hidden). Click Reveal.";
+  } else {
+    $("cardDesc").textContent = current.desc || "—";
+  }
+}
+
 function render(){
- players=parsePlayers($("playersInput").value);
- players.forEach(p=>scores[p]=scores[p]||0);
- $("turnLabel").textContent=players[turn]||"—";
- $("roundLabel").textContent=round;
- $("countLabel").textContent=dateline.length;
+  // players + scores
+  players = parsePlayers($("playersInput").value);
+  players.forEach(p => scores[p] = scores[p] || 0);
 
- $("scoresBody").innerHTML="";
- players.forEach(p=>{
-  $("scoresBody").innerHTML+=`<tr><td>${p}</td><td>${scores[p]}</td></tr>`;
- });
+  $("turnLabel").textContent = players[turn] || "—";
+  $("roundLabel").textContent = round;
+  $("countLabel").textContent = dateline.length;
 
- $("drawBtn").disabled=!(phase==="ready");
- $("revealBtn").disabled=!(phase==="inserted");
- $("nextBtn").disabled=!(phase==="turn_done");
+  // scores table
+  $("scoresBody").innerHTML = "";
+  if(players.length===0){
+    $("scoresBody").innerHTML = `<tr><td class="muted">Add players above</td><td class="muted">—</td></tr>`;
+  } else {
+    players.forEach(p=>{
+      $("scoresBody").innerHTML += `<tr><td>${p}</td><td>${scores[p]||0}</td></tr>`;
+    });
+  }
 
- const d=$("dateline"); d.innerHTML="";
- for(let i=0;i<=dateline.length;i++){
-  const ins=document.createElement("div");
-  ins.className="insert"+(phase==="holding"?" active":"");
-  if(phase==="holding") ins.onclick=()=>insert(i);
-  ins.textContent="+";
-  d.appendChild(ins);
-  if(i===dateline.length) break;
+  // buttons
+  $("drawBtn").disabled = !(phase==="ready");
+  $("revealBtn").disabled = !(phase==="inserted");
+  $("nextBtn").disabled = !(phase==="turn_done");
 
-  const c=dateline[i];
-  const box=document.createElement("div");
-  box.className="cardBox";
-  box.innerHTML=`<div class="cardTitle">${c.name}</div>
-    <div class="cardMeta">${c.gwp} · ${c.stage}</div>`;
-  d.appendChild(box);
- }
- save();
+  // current card panel
+  renderCurrentPanel();
+
+  // dateline rendering with + inserts
+  const d = $("dateline");
+  d.innerHTML = "";
+
+  const canInsert = (phase==="holding");
+  const canRemove = (phase==="ready" || phase==="turn_done"); // simple + safe
+
+  for(let i=0;i<=dateline.length;i++){
+    const ins = document.createElement("div");
+    ins.className = "insert" + (canInsert ? " active" : "");
+    ins.textContent = "+";
+    if(canInsert){
+      ins.onclick = ()=>insert(i);
+    }
+    d.appendChild(ins);
+
+    if(i===dateline.length) break;
+
+    const c = dateline[i];
+    const box = document.createElement("div");
+    box.className = "cardBox";
+    box.innerHTML = `
+      <div class="cardTitle">${c.name}</div>
+      <div class="cardMeta"><b>${c.gwp}</b> kgCO₂e · ${c.stage || "—"}</div>
+      <div class="cardMeta">${c.unit || "—"}</div>
+    `;
+
+    const rm = document.createElement("button");
+    rm.className = "removeMini";
+    rm.textContent = "Remove";
+    rm.disabled = !canRemove;
+    rm.title = canRemove ? "Remove this card (returns to deck)" : "Remove disabled during placement/reveal";
+    rm.onclick = ()=>removeFromDateline(i);
+
+    box.appendChild(rm);
+    d.appendChild(box);
+  }
+
+  save();
 }
 
 /* STORAGE */
 function save(){
- localStorage.setItem(key("state"),JSON.stringify({deck,dateline,round,turn,scores,players:$("playersInput").value}));
+  // store by id to keep state smaller and robust
+  const state = {
+    deckIds: deck.map(c=>c.id),
+    datelineIds: dateline.map(c=>c.id),
+    currentId: current ? current.id : null,
+    insertAt,
+    phase,
+    round,
+    turn,
+    scores,
+    playersText: $("playersInput").value || ""
+  };
+  localStorage.setItem(key("state"), JSON.stringify(state));
 }
+
 function load(){
- const s=JSON.parse(localStorage.getItem(key("state"))||"null");
- if(!s) return;
- deck=s.deck; dateline=s.dateline; round=s.round; turn=s.turn; scores=s.scores||{};
- $("playersInput").value=s.players||"";
+  const raw = localStorage.getItem(key("state"));
+  if(!raw) return;
+
+  try{
+    const s = JSON.parse(raw);
+    // rebuild from ids using CARDS
+    const byId = new Map(CARDS.map(c=>[c.id,c]));
+    const fromIds = (ids) => (Array.isArray(ids) ? ids.map(id=>byId.get(id)).filter(Boolean) : []);
+
+    deck = fromIds(s.deckIds);
+    dateline = fromIds(s.datelineIds);
+
+    current = s.currentId ? byId.get(s.currentId) : null;
+    insertAt = (typeof s.insertAt === "number") ? s.insertAt : null;
+    phase = s.phase || "ready";
+    round = Number(s.round || 0);
+    turn = Number(s.turn || 0);
+    scores = (s.scores && typeof s.scores==="object") ? s.scores : {};
+    $("playersInput").value = s.playersText || "";
+  } catch {
+    // ignore broken state
+  }
 }
 
 /* INIT */
 (async function(){
- CARDS=await loadCards();
- deck=shuffle([...CARDS]);
- load();
- startAnchor();
- $("drawBtn").onclick=draw;
- $("revealBtn").onclick=reveal;
- $("nextBtn").onclick=nextPlayer;
- $("resetBtn").onclick=()=>{localStorage.removeItem(key("state"));location.reload()};
- render();
+  CARDS = await loadCards();
+  deck = shuffle([...CARDS]);
+  load();
+  startAnchor();
+
+  $("drawBtn").onclick = draw;
+  $("revealBtn").onclick = reveal;
+  $("nextBtn").onclick = nextPlayer;
+  $("resetBtn").onclick = ()=>{ localStorage.removeItem(key("state")); location.reload(); };
+
+  $("playersInput").addEventListener("input", ()=>render());
+
+  render();
 })();
 </script>
 </body>
