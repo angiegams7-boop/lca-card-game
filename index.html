@@ -1,618 +1,267 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>LCA Cards — Dateline</title>
-  <style>
-    :root{
-      --bg:#f6f7fb; --card:#fff; --text:#111827; --muted:#6b7280; --border:#e5e7eb;
-      --accent:#6d28d9; --accent2:#5b21b6; --soft:#ede9fe;
-      --ok:#065f46; --bad:#991b1b;
-    }
-    body{margin:0;font-family:system-ui,Arial;background:var(--bg);color:var(--text)}
-    header{background:linear-gradient(90deg,var(--accent2),var(--accent));color:#fff;padding:14px 16px}
-    main{max-width:1100px;margin:0 auto;padding:16px}
-    .grid{display:grid;grid-template-columns:1fr 1.4fr;gap:14px}
-    .card{background:var(--card);border-radius:14px;padding:14px;box-shadow:0 6px 16px rgba(0,0,0,.06)}
-    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .pill{background:rgba(255,255,255,.18);color:#fff;border-radius:999px;padding:4px 10px;font-size:12px}
-    .pillDark{background:var(--soft);color:var(--accent2);border-radius:999px;padding:4px 10px;font-size:12px}
-    .muted{color:var(--muted);font-size:13px}
-    button{border:0;border-radius:10px;padding:10px 12px;cursor:pointer;font-weight:800}
-    button.primary{background:var(--accent);color:#fff}
-    button.secondary{background:#e5e7eb;color:#111827}
-    button.warn{background:#ef4444;color:#fff}
-    button:disabled{opacity:.5;cursor:not-allowed}
-    textarea{width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid var(--border);min-height:56px}
-    table{width:100%;border-collapse:collapse;margin-top:8px}
-    th,td{border-bottom:1px solid var(--border);padding:6px;text-align:left}
-    th{font-size:12px;color:var(--muted)}
-    .ok{color:var(--ok);font-weight:900}
-    .bad{color:var(--bad);font-weight:900}
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>LCA Cards — Dateline</title>
 
-    /* Dateline list */
-    .datelineWrap{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;margin-top:10px}
-    .ins{
-      width:34px;min-height:74px;border:2px dashed var(--border);border-radius:12px;
-      display:flex;align-items:center;justify-content:center;background:#fafafe;
-      font-weight:900;color:var(--accent);user-select:none
-    }
-    .ins.active{border-color:var(--accent);cursor:pointer}
-    .ins:not(.active){opacity:.5}
-    .cardBox{
-      min-width:160px;max-width:230px;border:1px solid var(--border);border-radius:12px;
-      padding:10px;background:#fff;display:flex;flex-direction:column;gap:6px
-    }
-    .cardTitle{font-weight:900}
-    .cardMeta{font-size:12px;color:var(--muted)}
-    .chip{display:inline-block;background:var(--soft);color:var(--accent2);border-radius:999px;padding:2px 8px;font-size:12px;font-weight:800}
-    .miniRemove{
-      margin-top:auto;align-self:flex-start;border:0;border-radius:999px;padding:6px 10px;
-      background:#fee2e2;color:#991b1b;font-weight:900;cursor:pointer;font-size:12px
-    }
-    .big{font-size:18px;margin:8px 0}
-    hr{border:none;border-top:1px solid var(--border);margin:12px 0}
-  </style>
+<style>
+:root{
+  --bg:#f6f7fb; --card:#fff; --text:#111827; --muted:#6b7280; --border:#e5e7eb;
+  --accent:#6d28d9; --accent2:#5b21b6; --soft:#ede9fe;
+  --ok:#065f46; --bad:#991b1b;
+}
+body{margin:0;font-family:system-ui;background:var(--bg);color:var(--text)}
+header{background:linear-gradient(90deg,var(--accent2),var(--accent));color:#fff;padding:14px}
+main{max-width:1100px;margin:auto;padding:16px}
+.grid{display:grid;grid-template-columns:1fr 1.4fr;gap:16px}
+.card{background:var(--card);border-radius:14px;padding:14px;box-shadow:0 6px 16px rgba(0,0,0,.06)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.pill{background:rgba(255,255,255,.2);padding:4px 10px;border-radius:999px;font-size:12px}
+.pillDark{background:var(--soft);color:var(--accent2);padding:4px 10px;border-radius:999px;font-size:12px}
+button{border:0;border-radius:10px;padding:10px 14px;font-weight:800;cursor:pointer}
+.primary{background:var(--accent);color:#fff}
+.secondary{background:#e5e7eb}
+.warn{background:#ef4444;color:#fff}
+button:disabled{opacity:.5;cursor:not-allowed}
+textarea{width:100%;padding:10px;border-radius:10px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;margin-top:8px}
+th,td{border-bottom:1px solid var(--border);padding:6px}
+th{font-size:12px;color:var(--muted)}
+.ok{color:var(--ok);font-weight:900}
+.bad{color:var(--bad);font-weight:900}
+
+/* Dateline */
+.dateline{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.insert{
+  width:34px;min-height:72px;border:2px dashed var(--border);border-radius:12px;
+  display:flex;align-items:center;justify-content:center;font-weight:900;color:var(--accent)
+}
+.insert.active{cursor:pointer;border-color:var(--accent)}
+.cardBox{
+  min-width:160px;border:1px solid var(--border);border-radius:12px;padding:10px;background:#fff
+}
+.cardTitle{font-weight:900}
+.cardMeta{font-size:12px;color:var(--muted)}
+.removeMini{margin-top:6px;border:0;border-radius:999px;padding:6px 10px;
+  background:#fee2e2;color:#991b1b;font-weight:900;cursor:pointer;font-size:12px}
+</style>
 </head>
 
 <body>
 <header>
-  <div class="row" style="justify-content:space-between;">
+  <div class="row" style="justify-content:space-between">
     <div>
-      <div style="font-weight:900;font-size:18px;">LCA Cards — Dateline</div>
-      <div class="muted" style="color:#e9d5ff">Place (hidden) → Reveal → Correct = +1, Wrong = Remove</div>
+      <strong>LCA Cards — Dateline</strong>
+      <div class="pill">Room: <b id="roomLabel"></b></div>
     </div>
-    <div class="row">
-      <span class="pill">Room: <b id="roomLabel">—</b></span>
-      <span class="pill">Turn: <b id="turnLabel">—</b></span>
-    </div>
+    <div class="pill">Turn: <b id="turnLabel"></b></div>
   </div>
 </header>
 
 <main>
-  <div class="grid">
-    <!-- LEFT -->
-    <section class="card">
-      <div class="row" style="justify-content:space-between;">
-        <span class="pillDark">Dateline: <b id="countLabel">0</b>/14</span>
-        <span class="pillDark">Cards left: <b id="leftLabel">0</b></span>
-        <span class="pillDark">Round: <b id="roundLabel">0</b></span>
-      </div>
+<div class="grid">
 
-      <hr>
-
-      <div>
-        <div style="font-weight:900;">Players (comma-separated, max 7)</div>
-        <textarea id="playersInput" placeholder="Ana, Luis, Maria, Johan"></textarea>
-        <div class="muted" style="margin-top:6px;">Turn rotates automatically after each Reveal (or mandatory Remove).</div>
-      </div>
-
-      <div style="margin-top:12px;">
-        <div style="font-weight:900;">Scores</div>
-        <table>
-          <thead><tr><th>Player</th><th>Score</th></tr></thead>
-          <tbody id="scoresBody"></tbody>
-        </table>
-      </div>
-
-      <hr>
-
-      <div>
-        <div class="muted">Current card (value hidden until reveal)</div>
-        <div class="big" id="currentName">—</div>
-        <div class="row">
-          <span class="pillDark" id="currentStage">—</span>
-          <span class="pillDark" id="currentUnit">—</span>
-        </div>
-        <div class="muted" id="currentDesc" style="margin-top:8px;">—</div>
-      </div>
-
-      <div class="row" style="margin-top:12px;">
-        <button class="primary" id="drawBtn">Draw</button>
-        <button class="primary" id="revealBtn" disabled>Reveal</button>
-        <button class="warn" id="removeBtn" disabled>Remove (required if wrong)</button>
-        <button class="secondary" id="resetBtn">Reset room</button>
-      </div>
-
-      <div style="margin-top:12px;">
-        <div class="muted">Feedback</div>
-        <div class="big" id="feedback">—</div>
-        <div class="muted" id="details">—</div>
-      </div>
-    </section>
-
-    <!-- RIGHT -->
-    <section class="card">
-      <div style="font-weight:900;">Dateline (low → high impact)</div>
-      <div class="muted">Click a <b>+</b> to insert the hidden card. Reveal decides if it stays.</div>
-      <div id="datelineWrap" class="datelineWrap"></div>
-    </section>
+<!-- LEFT -->
+<section class="card">
+  <div class="row">
+    <span class="pillDark">Cards: <b id="countLabel">0</b>/14</span>
+    <span class="pillDark">Round: <b id="roundLabel">0</b></span>
   </div>
+
+  <h4>Players</h4>
+  <textarea id="playersInput" placeholder="Ana, Luis, Maria, Johan"></textarea>
+
+  <h4>Scores</h4>
+  <table>
+    <thead><tr><th>Player</th><th>Score</th></tr></thead>
+    <tbody id="scoresBody"></tbody>
+  </table>
+
+  <hr>
+
+  <h4>Current card</h4>
+  <div id="cardName">—</div>
+  <div class="pillDark" id="cardStage">—</div>
+  <div class="pillDark" id="cardUnit">—</div>
+  <p id="cardDesc" class="muted">Click Draw to start.</p>
+
+  <div class="row">
+    <button class="primary" id="drawBtn">Draw</button>
+    <button class="primary" id="revealBtn" disabled>Reveal</button>
+    <button class="secondary" id="nextBtn" disabled>Next player</button>
+    <button class="secondary" id="resetBtn">Reset room</button>
+  </div>
+
+  <div id="feedback">—</div>
+</section>
+
+<!-- RIGHT -->
+<section class="card">
+  <strong>Dateline (low → high impact)</strong>
+  <div class="dateline" id="dateline"></div>
+</section>
+
+</div>
 </main>
 
 <script>
-/* ========= CONFIG ========= */
-const TARGET_LEN = 14;
-const SHEET_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vT5Pe5AfNwQ8NPGoaKIODSi8aIz7vEnRToALhtfOcxnldJ4fDgXaIGYZNd6lCFYwa0lpEUkuqu9TchH/pub?gid=0&single=true&output=csv";
+/* CONFIG */
+const TARGET = 14;
+const SHEET =
+"https://docs.google.com/spreadsheets/d/e/2PACX-1vT5Pe5AfNwQ8NPGoaKIODSi8aIz7vEnRToALhtfOcxnldJ4fDgXaIGYZNd6lCFYwa0lpEUkuqu9TchH/pub?gid=0&single=true&output=csv";
 
-/* ========= ROOM ========= */
-const room = (new URLSearchParams(location.search).get("room") || "G1")
-  .replace(/[^a-zA-Z0-9_-]/g,"").slice(0,24) || "G1";
+/* ROOM */
+const room = new URLSearchParams(location.search).get("room") || "G1";
 document.getElementById("roomLabel").textContent = room;
-const skey = (k) => `LCA_DATELINE_${room}__${k}`;
+const key = k => `LCA_${room}_${k}`;
 
-/* ========= STATE =========
-phase:
-- ready: can draw (no current)
-- holding: current drawn, not inserted yet
-- inserted: current inserted (hidden), can reveal
-- must_remove: revealed wrong, must remove before next turn
-*/
-let CARDS = [];
-let deckIds = [];        // remaining card IDs (shuffled)
-let datelineIds = [];    // ordered list of card IDs on board (revealed cards + possibly hidden current)
-let currentId = null;    // card in hand or placed this turn
-let insertedIndex = null;
-let phase = "ready";
-let round = 0;
+/* STATE */
+let CARDS=[], deck=[], dateline=[], current=null, insertAt=null;
+let phase="ready", round=0;
+let players=[], turn=0, scores={};
 
-/* players + scoring */
-let playersText = "";
-let players = [];
-let turnIndex = 0;
-let scores = {};         // name -> int
+/* HELPERS */
+const $=id=>document.getElementById(id);
+const shuffle=a=>a.sort(()=>Math.random()-.5);
+const parsePlayers=t=>t.split(",").map(x=>x.trim()).filter(Boolean).slice(0,7);
 
-/* ========= UI ========= */
-const $ = (id) => document.getElementById(id);
-const ui = {
-  playersInput: $("playersInput"),
-  scoresBody: $("scoresBody"),
-  drawBtn: $("drawBtn"),
-  revealBtn: $("revealBtn"),
-  removeBtn: $("removeBtn"),
-  resetBtn: $("resetBtn"),
-  currentName: $("currentName"),
-  currentStage: $("currentStage"),
-  currentUnit: $("currentUnit"),
-  currentDesc: $("currentDesc"),
-  feedback: $("feedback"),
-  details: $("details"),
-  datelineWrap: $("datelineWrap"),
-  turnLabel: $("turnLabel"),
-  countLabel: $("countLabel"),
-  leftLabel: $("leftLabel"),
-  roundLabel: $("roundLabel"),
-};
-
-function shuffle(arr){
-  const a = arr.slice();
-  for(let i=a.length-1;i>0;i--){
-    const j = Math.floor(Math.random()*(i+1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
+/* CSV */
+function parseCSV(t){
+ let r=[],c="",row=[],q=false;
+ for(let i=0;i<t.length;i++){
+  let ch=t[i],n=t[i+1];
+  if(ch=='"'&&q&&n=='"'){c+='"';i++;continue}
+  if(ch=='"'){q=!q;continue}
+  if(ch==","&&!q){row.push(c);c="";continue}
+  if((ch=="\n"||ch=="\r")&&!q){if(row.length){row.push(c);r.push(row)}row=[];c="";continue}
+  c+=ch;
+ }
+ if(row.length){row.push(c);r.push(row)}
+ return r;
 }
 
-function parsePlayers(text){
-  return text.split(",").map(s=>s.trim()).filter(Boolean).slice(0,7);
+/* LOAD */
+async function loadCards(){
+ const t=await fetch(SHEET).then(r=>r.text());
+ const rows=parseCSV(t), h=rows[0];
+ const i=n=>h.indexOf(n);
+ return rows.slice(1).map(r=>({
+  id:r[i("Card_ID")], name:r[i("Title")],
+  unit:r[i("Functional_Unit")], stage:r[i("System_Boundary")],
+  desc:r[i("Short_Description")], gwp:Number(r[i("Impact_Value")])
+ })).filter(c=>c.id && !isNaN(c.gwp));
 }
 
-function getCard(id){
-  return CARDS.find(c => c.id === id) || null;
+/* RULE */
+function correct(idx,c){
+ const L=idx>0?dateline[idx-1]:null;
+ const R=idx<dateline.length-1?dateline[idx+1]:null;
+ if(L && L.gwp>c.gwp) return false;
+ if(R && R.gwp<c.gwp) return false;
+ return true;
 }
 
-/* ========= CSV parsing (simple, supports quotes) ========= */
-function parseCSV(text){
-  const rows = [];
-  let row = [], cur = "", inQuotes = false;
-
-  for(let i=0;i<text.length;i++){
-    const c = text[i], n = text[i+1];
-
-    if(c === '"' && inQuotes && n === '"'){ cur += '"'; i++; continue; }
-    if(c === '"'){ inQuotes = !inQuotes; continue; }
-
-    if(c === "," && !inQuotes){ row.push(cur); cur=""; continue; }
-    if((c === "\n" || c === "\r") && !inQuotes){
-      if(cur.length || row.length){ row.push(cur); rows.push(row); }
-      row=[]; cur="";
-      continue;
-    }
-    cur += c;
-  }
-  if(cur.length || row.length){ row.push(cur); rows.push(row); }
-  return rows;
+/* FLOW */
+function startAnchor(){
+ if(dateline.length===0 && deck.length){
+  dateline.push(deck.pop());
+ }
 }
 
-async function loadCardsFromSheet(){
-  const res = await fetch(SHEET_CSV_URL, { cache:"no-store" });
-  const text = await res.text();
-  const table = parseCSV(text).filter(r => r.some(x => (x ?? "").trim() !== ""));
-  if(table.length < 2) return [];
-
-  const headers = table[0].map(h => h.trim());
-  const idx = (name) => headers.indexOf(name);
-  const get = (r, col) => (r[idx(col)] ?? "").trim();
-
-  const cards = table.slice(1).map(r => ({
-    id: get(r,"Card_ID"),
-    name: get(r,"Title"),
-    unit: get(r,"Functional_Unit"),
-    desc: get(r,"Short_Description"),
-    stage: get(r,"System_Boundary"),
-    gwp: Number(get(r,"Impact_Value"))
-  })).filter(c => c.id && c.name && !Number.isNaN(c.gwp));
-
-  // de-duplicate by ID
-  const seen = new Set();
-  return cards.filter(c => (seen.has(c.id) ? false : (seen.add(c.id), true)));
+function draw(){
+ if(phase!=="ready"||!deck.length||dateline.length>=TARGET) return;
+ current=deck.pop(); insertAt=null; phase="holding"; round++;
+ render();
 }
 
-/* ========= RULE: local correctness vs immediate neighbors ========= */
-function isCorrectAtIndex(index, card){
-  const leftId = index > 0 ? datelineIds[index-1] : null;
-  const rightId = index < datelineIds.length-1 ? datelineIds[index+1] : null;
-
-  if(leftId){
-    const lc = getCard(leftId);
-    if(lc && lc.gwp > card.gwp) return false;
-  }
-  if(rightId){
-    const rc = getCard(rightId);
-    if(rc && card.gwp > rc.gwp) return false;
-  }
-  return true;
-}
-
-/* ========= PERSISTENCE ========= */
-function saveState(){
-  const state = {
-    deckIds, datelineIds,
-    currentId, insertedIndex, phase,
-    round,
-    playersText: ui.playersInput.value || "",
-    turnIndex,
-    scores
-  };
-  localStorage.setItem(skey("state"), JSON.stringify(state));
-}
-
-function loadState(){
-  const raw = localStorage.getItem(skey("state"));
-  if(!raw) return false;
-  try{
-    const s = JSON.parse(raw);
-    deckIds = Array.isArray(s.deckIds) ? s.deckIds : [];
-    datelineIds = Array.isArray(s.datelineIds) ? s.datelineIds : [];
-    currentId = s.currentId ?? null;
-    insertedIndex = (typeof s.insertedIndex === "number") ? s.insertedIndex : null;
-    phase = s.phase || "ready";
-    round = Number(s.round || 0);
-    ui.playersInput.value = s.playersText || "";
-    turnIndex = Number(s.turnIndex || 0);
-    scores = (s.scores && typeof s.scores === "object") ? s.scores : {};
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function resetRoom(){
-  localStorage.removeItem(skey("state"));
-  deckIds = [];
-  datelineIds = [];
-  currentId = null;
-  insertedIndex = null;
-  phase = "ready";
-  round = 0;
-  ui.playersInput.value = "";
-  turnIndex = 0;
-  scores = {};
-  setFeedback("—","—");
-}
-
-/* ========= UI helpers ========= */
-function setFeedback(main, detail){
-  ui.feedback.innerHTML = main ?? "—";
-  ui.details.textContent = detail ?? "—";
-}
-
-/* ========= TURN helpers ========= */
-function syncPlayers(){
-  playersText = ui.playersInput.value || "";
-  players = parsePlayers(playersText);
-  if(players.length === 0){
-    turnIndex = 0;
-  } else {
-    // keep turnIndex within bounds
-    if(turnIndex >= players.length) turnIndex = 0;
-    // ensure scores exist
-    for(const p of players){
-      if(typeof scores[p] !== "number") scores[p] = 0;
-    }
-  }
-}
-
-function currentPlayer(){
-  if(players.length === 0) return "—";
-  return players[turnIndex];
-}
-
-function advanceTurn(){
-  if(players.length === 0) return;
-  turnIndex = (turnIndex + 1) % players.length;
-}
-
-/* ========= GAME FLOW ========= */
-function startWithAnchorCardIfNeeded(){
-  // If no board yet, place 1 revealed anchor automatically (no points)
-  if(datelineIds.length > 0) return;
-  if(deckIds.length === 0) return;
-
-  const anchorId = deckIds.pop();
-  datelineIds.push(anchorId);
-  // ensure we are in ready state
-  currentId = null;
-  insertedIndex = null;
-  phase = "ready";
-  setFeedback("Anchor card placed.", "This first revealed card gives a starting reference (no points).");
-}
-
-function canDraw(){
-  return phase === "ready" && currentId === null && datelineIds.length < TARGET_LEN && deckIds.length > 0;
-}
-
-function drawCard(){
-  if(!canDraw()) return;
-  currentId = deckIds.pop();
-  insertedIndex = null;
-  phase = "holding";
-  round += 1;
-  setFeedback("Place the hidden card.", "Click a + on the Dateline to insert it.");
-  render();
-}
-
-function insertAt(index){
-  if(phase !== "holding" || !currentId) return;
-  // insert currentId into dateline at index
-  datelineIds.splice(index, 0, currentId);
-  insertedIndex = index;
-  phase = "inserted";
-  setFeedback("Inserted (value hidden).", "Now click Reveal to evaluate.");
-  render();
+function insert(idx){
+ if(phase!=="holding") return;
+ dateline.splice(idx,0,current);
+ insertAt=idx; phase="inserted";
+ render();
 }
 
 function reveal(){
-  if(phase !== "inserted" || !currentId || typeof insertedIndex !== "number") return;
-  const c = getCard(currentId);
-  if(!c){
-    setFeedback("<span class='bad'>Card data missing</span>", "Check your sheet headers and values.");
-    return;
-  }
-
-  const ok = isCorrectAtIndex(insertedIndex, c);
-
-  if(ok){
-    // score +1
-    const p = currentPlayer();
-    if(p !== "—") scores[p] = (scores[p] || 0) + 1;
-    setFeedback("<span class='ok'>✅ Correct (+1)</span>", `GWP: ${c.gwp} kgCO₂e · Turn ends.`);
-    // end turn automatically
-    endTurnAfterSuccess();
-  } else {
-    setFeedback("<span class='bad'>❌ Incorrect — Remove required</span>", `GWP: ${c.gwp} kgCO₂e · You must remove this card to continue.`);
-    phase = "must_remove";
-    render();
-  }
+ if(phase!=="inserted") return;
+ const ok=correct(insertAt,current);
+ if(ok){
+  scores[players[turn]]=(scores[players[turn]]||0)+1;
+  $("feedback").innerHTML="<span class='ok'>Correct +1</span>";
+ }else{
+  $("feedback").innerHTML="<span class='bad'>Incorrect (0)</span>";
+ }
+ current=null; insertAt=null; phase="turn_done";
+ render();
 }
 
-function endTurnAfterSuccess(){
-  // keep card in dateline
-  currentId = null;
-  insertedIndex = null;
-  phase = "ready";
-  advanceTurn();
-  render();
-  maybeEndGame();
+function nextPlayer(){
+ if(phase!=="turn_done") return;
+ turn=(turn+1)%players.length;
+ phase="ready";
+ $("feedback").textContent="—";
+ render();
 }
 
-function removeCurrentWrongCard(){
-  if(phase !== "must_remove" || !currentId || typeof insertedIndex !== "number") return;
-
-  // remove from dateline
-  const removed = datelineIds.splice(insertedIndex, 1)[0];
-
-  // return to deck (random-ish: push and shuffle lightly)
-  deckIds.push(removed);
-  deckIds = shuffle(deckIds);
-
-  setFeedback("Card removed.", "Turn ends (0 points). Next player.");
-  // end turn
-  currentId = null;
-  insertedIndex = null;
-  phase = "ready";
-  advanceTurn();
-  render();
-}
-
-function removeAnyCard(id){
-  // allowed anytime, but keep it simple: only if the id is currently on board and not the "current" wrong card waiting
-  const idx = datelineIds.indexOf(id);
-  if(idx === -1) return;
-
-  // If we are waiting mandatory remove and this is NOT the current card, we still allow removal (per your request),
-  // but we KEEP the rule: you cannot continue until the current wrong card is removed.
-  datelineIds.splice(idx, 1);
-  deckIds.push(id);
-  deckIds = shuffle(deckIds);
-
-  setFeedback("Card removed from Dateline.", "Returned to deck (scores are not affected).");
-  render();
-}
-
-function maybeEndGame(){
-  if(datelineIds.length >= TARGET_LEN){
-    // lock the game
-    setFeedback("<span class='ok'>🎉 Game complete</span>", "Dateline has 14 cards. Session finished.");
-    render();
-  }
-}
-
-/* ========= RENDER ========= */
-function renderScores(){
-  ui.scoresBody.innerHTML = "";
-  for(const p of players){
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${p}</td><td>${scores[p] || 0}</td>`;
-    ui.scoresBody.appendChild(tr);
-  }
-}
-
-function renderCurrentPanel(){
-  const c = currentId ? getCard(currentId) : null;
-  if(!c){
-    ui.currentName.textContent = "—";
-    ui.currentStage.textContent = "—";
-    ui.currentUnit.textContent = "—";
-    ui.currentDesc.textContent = (datelineIds.length >= TARGET_LEN)
-      ? "Game finished."
-      : "Click Draw to start your turn.";
-    return;
-  }
-
-  ui.currentName.textContent = c.name;
-  ui.currentStage.textContent = c.stage || "—";
-  ui.currentUnit.textContent = c.unit || "—";
-
-  if(phase === "holding"){
-    ui.currentDesc.textContent = (c.desc || "") + " (value hidden)";
-  } else if(phase === "inserted"){
-    ui.currentDesc.textContent = "Inserted (value hidden). Click Reveal.";
-  } else if(phase === "must_remove"){
-    ui.currentDesc.textContent = `Revealed GWP: ${c.gwp} kgCO₂e (must remove)`;
-  } else {
-    ui.currentDesc.textContent = (c.desc || "") + " (value hidden)";
-  }
-}
-
-function renderDateline(){
-  ui.datelineWrap.innerHTML = "";
-
-  // insertion points are between cards: count = datelineLen + 1
-  const showInsert = (phase === "holding" && !!currentId);
-
-  for(let i=0;i<=datelineIds.length;i++){
-    // insertion marker
-    const ins = document.createElement("div");
-    ins.className = "ins" + (showInsert ? " active" : "");
-    ins.textContent = "+";
-    if(showInsert){
-      ins.addEventListener("click", () => insertAt(i));
-    }
-    ui.datelineWrap.appendChild(ins);
-
-    if(i === datelineIds.length) break;
-
-    // card box
-    const id = datelineIds[i];
-    const c = getCard(id);
-
-    const box = document.createElement("div");
-    box.className = "cardBox";
-
-    // show value for revealed board cards
-    const val = c ? `${c.gwp} kgCO₂e` : "";
-    const meta = c ? `${c.stage || ""} · ${c.unit || ""}` : "";
-
-    box.innerHTML = `
-      <div class="cardTitle">${c ? c.name : id}</div>
-      <div class="cardMeta">${meta}</div>
-      <div><span class="chip">${val}</span></div>
-    `;
-
-    const rm = document.createElement("button");
-    rm.className = "miniRemove";
-    rm.textContent = "Remove";
-    rm.addEventListener("click", () => removeAnyCard(id));
-    box.appendChild(rm);
-
-    ui.datelineWrap.appendChild(box);
-  }
-}
-
-function renderControls(){
-  const finished = datelineIds.length >= TARGET_LEN;
-
-  ui.turnLabel.textContent = currentPlayer();
-  ui.countLabel.textContent = String(Math.min(datelineIds.length, TARGET_LEN));
-  ui.leftLabel.textContent = String(deckIds.length + (currentId ? 1 : 0));
-  ui.roundLabel.textContent = String(round);
-
-  ui.drawBtn.disabled = !canDraw();
-  ui.revealBtn.disabled = !(phase === "inserted");
-  ui.removeBtn.disabled = !(phase === "must_remove");
-  // If must_remove, do not allow draw/reveal; already covered.
-  if(finished){
-    ui.drawBtn.disabled = true;
-    ui.revealBtn.disabled = true;
-    ui.removeBtn.disabled = true;
-  }
-}
-
+/* RENDER */
 function render(){
-  syncPlayers();
-  renderScores();
-  renderCurrentPanel();
-  renderDateline();
-  renderControls();
-  saveState();
+ players=parsePlayers($("playersInput").value);
+ players.forEach(p=>scores[p]=scores[p]||0);
+ $("turnLabel").textContent=players[turn]||"—";
+ $("roundLabel").textContent=round;
+ $("countLabel").textContent=dateline.length;
+
+ $("scoresBody").innerHTML="";
+ players.forEach(p=>{
+  $("scoresBody").innerHTML+=`<tr><td>${p}</td><td>${scores[p]}</td></tr>`;
+ });
+
+ $("drawBtn").disabled=!(phase==="ready");
+ $("revealBtn").disabled=!(phase==="inserted");
+ $("nextBtn").disabled=!(phase==="turn_done");
+
+ const d=$("dateline"); d.innerHTML="";
+ for(let i=0;i<=dateline.length;i++){
+  const ins=document.createElement("div");
+  ins.className="insert"+(phase==="holding"?" active":"");
+  if(phase==="holding") ins.onclick=()=>insert(i);
+  ins.textContent="+";
+  d.appendChild(ins);
+  if(i===dateline.length) break;
+
+  const c=dateline[i];
+  const box=document.createElement("div");
+  box.className="cardBox";
+  box.innerHTML=`<div class="cardTitle">${c.name}</div>
+    <div class="cardMeta">${c.gwp} · ${c.stage}</div>`;
+  d.appendChild(box);
+ }
+ save();
 }
 
-/* ========= INIT ========= */
-async function init(){
-  CARDS = await loadCardsFromSheet();
-
-  // Start fresh deck if no saved state
-  const hasState = loadState();
-
-  if(!hasState){
-    deckIds = shuffle(CARDS.map(c=>c.id));
-    datelineIds = [];
-    currentId = null;
-    insertedIndex = null;
-    phase = "ready";
-    round = 0;
-    turnIndex = 0;
-    scores = {};
-  } else {
-    // Clean invalid ids if sheet changed
-    const valid = new Set(CARDS.map(c=>c.id));
-    deckIds = deckIds.filter(id => valid.has(id));
-    datelineIds = datelineIds.filter(id => valid.has(id));
-    if(currentId && !valid.has(currentId)){
-      currentId = null;
-      insertedIndex = null;
-      phase = "ready";
-    }
-  }
-
-  // anchor card (revealed) on empty board
-  startWithAnchorCardIfNeeded();
-
-  // Events
-  ui.playersInput.addEventListener("input", () => render());
-  ui.drawBtn.addEventListener("click", drawCard);
-  ui.revealBtn.addEventListener("click", reveal);
-  ui.removeBtn.addEventListener("click", removeCurrentWrongCard);
-  ui.resetBtn.addEventListener("click", () => { resetRoom(); init(); });
-
-  render();
-  maybeEndGame();
+/* STORAGE */
+function save(){
+ localStorage.setItem(key("state"),JSON.stringify({deck,dateline,round,turn,scores,players:$("playersInput").value}));
+}
+function load(){
+ const s=JSON.parse(localStorage.getItem(key("state"))||"null");
+ if(!s) return;
+ deck=s.deck; dateline=s.dateline; round=s.round; turn=s.turn; scores=s.scores||{};
+ $("playersInput").value=s.players||"";
 }
 
-init();
+/* INIT */
+(async function(){
+ CARDS=await loadCards();
+ deck=shuffle([...CARDS]);
+ load();
+ startAnchor();
+ $("drawBtn").onclick=draw;
+ $("revealBtn").onclick=reveal;
+ $("nextBtn").onclick=nextPlayer;
+ $("resetBtn").onclick=()=>{localStorage.removeItem(key("state"));location.reload()};
+ render();
+})();
 </script>
 </body>
 </html>
