@@ -1,232 +1,494 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>LCA Cards (MVP)</title>
+  <title>LCA Card Game (Simple Rooms)</title>
   <style>
     body{font-family:system-ui,Arial;margin:0;background:#f6f7fb}
     header{background:#111827;color:#fff;padding:14px 18px}
-    main{max-width:980px;margin:0 auto;padding:16px 18px}
+    main{max-width:1100px;margin:0 auto;padding:16px 18px}
     .grid{display:grid;grid-template-columns:1fr 1.2fr;gap:14px}
     .card{background:#fff;border-radius:12px;padding:14px;box-shadow:0 6px 18px rgba(0,0,0,.06)}
     button{border:0;border-radius:10px;padding:10px 12px;cursor:pointer;background:#111827;color:#fff}
+    button.secondary{background:#e5e7eb;color:#111827}
     button:disabled{opacity:.5;cursor:not-allowed}
     .muted{color:#6b7280;font-size:13px}
     .big{font-size:18px;margin:8px 0}
     .timeline{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-top:10px}
-    .slot{min-height:80px;border:2px dashed #cbd5e1;border-radius:12px;padding:8px;background:#fbfdff}
+    .slot{min-height:84px;border:2px dashed #cbd5e1;border-radius:12px;padding:8px;background:#fbfdff}
     .slot:hover{border-color:#111827}
     .placed{border:1px solid #e5e7eb;border-radius:10px;padding:8px;background:#fff}
     .ok{color:#065f46;font-weight:700}
     .bad{color:#991b1b;font-weight:700}
     .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
     .pill{background:#eef2ff;color:#3730a3;border-radius:999px;padding:4px 8px;font-size:12px}
+    input, textarea{
+      width:100%; box-sizing:border-box; padding:10px 10px; border-radius:10px;
+      border:1px solid #e5e7eb; font-family:inherit; font-size:14px;
+    }
+    textarea{min-height:58px; resize:vertical}
+    .topbar{display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:space-between}
+    .linkbox{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+    code{background:#f3f4f6;padding:2px 6px;border-radius:6px}
   </style>
 </head>
+
 <body>
-  <header>
-    <div style="font-weight:700;">LCA Cards — ubica primero, revela después</div>
-    <div class="muted" style="color:#cbd5e1">1) Sacar carta → 2) clic en un slot → 3) Revelar</div>
-  </header>
-
-  <main>
-    <div class="grid">
-      <section class="card">
-        <div class="row">
-          <div class="pill">Ronda: <b id="round">0</b></div>
-          <div class="pill">Puntos: <b id="score">0</b></div>
-          <div class="pill">Restantes: <b id="left">0</b></div>
-        </div>
-
-        <hr style="border:none;border-top:1px solid #e5e7eb;margin:12px 0;">
-
-        <div class="muted">Carta actual (dato oculto)</div>
-        <div class="big" id="name">—</div>
-        <div class="row">
-          <div class="pill" id="stage">—</div>
-          <div class="pill" id="unit">—</div>
-        </div>
-        <div class="muted" id="desc" style="margin-top:8px;">Saca una carta para empezar.</div>
-
-        <div class="row" style="margin-top:12px;">
-          <button id="draw">Sacar carta</button>
-          <button id="reveal" disabled>Revelar dato</button>
-          <button id="next" disabled style="background:#e5e7eb;color:#111827;">Siguiente</button>
-          <button id="reset" style="background:#e5e7eb;color:#111827;">Reiniciar</button>
-        </div>
-
-        <hr style="border:none;border-top:1px solid #e5e7eb;margin:12px 0;">
-
-        <div class="muted">Resultado</div>
-        <div class="big" id="result">—</div>
-        <div class="muted" id="detail">—</div>
-      </section>
-
-      <section class="card">
-        <div style="font-weight:700;">Timeline (menor → mayor impacto)</div>
-        <div class="muted">Clic en un slot vacío para ubicar la carta.</div>
-        <div class="timeline" id="timeline"></div>
-      </section>
+<header>
+  <div class="topbar">
+    <div>
+      <div style="font-weight:700;">LCA Cards — Place first, reveal later</div>
+      <div class="muted" style="color:#cbd5e1">
+        1) Draw a card → 2) Click an empty slot → 3) Reveal → 4) Next round
+      </div>
     </div>
-  </main>
+
+    <div class="linkbox">
+      <span class="pill">Room: <b id="roomLabel">—</b></span>
+      <button class="secondary" id="copyRoomLinkBtn" title="Copy room link">Copy room link</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="grid">
+    <section class="card">
+      <div class="row">
+        <div class="pill">Round: <b id="round">0</b></div>
+        <div class="pill">Score: <b id="score">0</b></div>
+        <div class="pill">Cards left: <b id="left">0</b></div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:12px 0;">
+
+      <div style="display:grid; gap:10px;">
+        <div>
+          <div class="muted">Players (comma-separated)</div>
+          <textarea id="playersInput" placeholder="e.g., Ana, Luis, Maria, Johan, ..."></textarea>
+          <div class="muted" style="margin-top:6px;">Saved per room.</div>
+        </div>
+
+        <div>
+          <div class="muted">Current card (data hidden)</div>
+          <div class="big" id="name">—</div>
+          <div class="row">
+            <div class="pill" id="stage">—</div>
+            <div class="pill" id="unit">—</div>
+          </div>
+          <div class="muted" id="desc" style="margin-top:8px;">Click <b>Draw</b> to start.</div>
+        </div>
+
+        <div class="row">
+          <button id="draw">Draw</button>
+          <button id="reveal" disabled>Reveal</button>
+          <button id="next" disabled class="secondary">Next round</button>
+          <button id="resetRoom" class="secondary">Reset this room</button>
+        </div>
+
+        <div>
+          <div class="muted">Result</div>
+          <div class="big" id="result">—</div>
+          <div class="muted" id="detail">—</div>
+        </div>
+
+        <div class="muted">
+          Tip: Use different room links for each group, e.g. <code>?room=G1</code>, <code>?room=G2</code>, etc.
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div style="font-weight:700;">Timeline (lower → higher impact)</div>
+      <div class="muted">Click an empty slot to place the card (before revealing).</div>
+      <div class="timeline" id="timeline"></div>
+    </section>
+  </div>
+</main>
 
 <script>
-  // 1) Edita aquí tus cartas (GWP solo se muestra al revelar)
-  const CARDS = [
-    {name:"Concrete C30/37", stage:"A1–A3", unit:"1 m³", desc:"Producción de concreto.", gwp:300},
-    {name:"Steel (rebar)", stage:"A1–A3", unit:"1 kg", desc:"Acero de refuerzo.", gwp:1.8},
-    {name:"Aluminum (primary)", stage:"A1–A3", unit:"1 kg", desc:"Aluminio primario.", gwp:9.5},
-    {name:"Timber (CLT)", stage:"A1–A3", unit:"1 m³", desc:"Madera CLT.", gwp:120},
-    {name:"Transport (truck)", stage:"A4", unit:"1 t·km", desc:"Transporte en camión.", gwp:0.12},
-    {name:"Electricity (mix)", stage:"Use", unit:"1 kWh", desc:"Electricidad promedio.", gwp:0.25},
-    {name:"Insulation (mineral wool)", stage:"A1–A3", unit:"1 m²", desc:"Aislante lana mineral.", gwp:2.2},
-  ];
+/**
+ * ======= CONFIG =======
+ * Use your Google Sheets CSV "Publish to web" link here.
+ * It must return CSV with headers:
+ * Card_ID, Title, Functional_Unit, Short_Description, Impact_Value, System_Boundary
+ */
+const SHEET_CSV_URL =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vT5Pe5AfNwQ8NPGoaKIODSi8aIz7vEnRToALhtfOcxnldJ4fDgXaIGYZNd6lCFYwa0lpEUkuqu9TchH/pub?gid=0&single=true&output=csv";
 
-  const SLOTS = 7;
+const SLOTS = 7;
 
-  // Estado del juego
-  let deck = [];
-  let placed = Array(SLOTS).fill(null);
-  let current = null;
-  let chosen = null;
-  let round = 0;
-  let score = 0;
-  let revealed = false;
+/**
+ * ======= ROOM HANDLING =======
+ * Each group uses a different "room" so the board state is separated.
+ * Example: .../lca-card-game/?room=G1
+ */
+function getRoomId() {
+  const params = new URLSearchParams(window.location.search);
+  const raw = (params.get("room") || "G1").trim();
+  // safe room key
+  return raw.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 24) || "G1";
+}
+const ROOM = getRoomId();
+document.getElementById("roomLabel").textContent = ROOM;
 
-  // UI
-  const el = (id) => document.getElementById(id);
-  const els = {
-    round: el("round"), score: el("score"), left: el("left"),
-    name: el("name"), stage: el("stage"), unit: el("unit"), desc: el("desc"),
-    draw: el("draw"), reveal: el("reveal"), next: el("next"), reset: el("reset"),
-    result: el("result"), detail: el("detail"),
-    timeline: el("timeline")
+// Copy room link
+document.getElementById("copyRoomLinkBtn").addEventListener("click", async () => {
+  const url = new URL(window.location.href);
+  url.searchParams.set("room", ROOM);
+  try {
+    await navigator.clipboard.writeText(url.toString());
+    alert("Room link copied!");
+  } catch {
+    prompt("Copy this link:", url.toString());
+  }
+});
+
+function storageKey(k){ return `LCA_GAME_${ROOM}__${k}`; }
+
+/**
+ * ======= CSV PARSING =======
+ * Simple CSV parser supporting quotes.
+ */
+function parseCSV(text) {
+  const rows = [];
+  let row = [], cur = "", inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    const next = text[i + 1];
+
+    if (c === '"' && inQuotes && next === '"') { cur += '"'; i++; continue; }
+    if (c === '"') { inQuotes = !inQuotes; continue; }
+
+    if (c === "," && !inQuotes) { row.push(cur); cur = ""; continue; }
+    if ((c === "\n" || c === "\r") && !inQuotes) {
+      if (cur.length || row.length) { row.push(cur); rows.push(row); }
+      row = []; cur = "";
+      continue;
+    }
+    cur += c;
+  }
+  if (cur.length || row.length) { row.push(cur); rows.push(row); }
+  return rows;
+}
+
+async function loadCardsFromSheet() {
+  const res = await fetch(SHEET_CSV_URL, { cache: "no-store" });
+  const text = await res.text();
+
+  const table = parseCSV(text).filter(r => r.some(cell => (cell ?? "").trim() !== ""));
+  if (table.length < 2) return [];
+
+  const headers = table[0].map(h => h.trim());
+  const idx = (name) => headers.indexOf(name);
+  const get = (r, col) => (r[idx(col)] ?? "").trim();
+
+  const cards = table.slice(1).map(r => {
+    const gwp = Number(get(r, "Impact_Value"));
+    return {
+      id: get(r, "Card_ID"),
+      name: get(r, "Title"),
+      unit: get(r, "Functional_Unit"),
+      desc: get(r, "Short_Description"),
+      stage: get(r, "System_Boundary"),
+      gwp
+    };
+  }).filter(c => c.id && c.name && !Number.isNaN(c.gwp));
+
+  // Remove duplicates by Card_ID (keep first)
+  const seen = new Set();
+  return cards.filter(c => (seen.has(c.id) ? false : (seen.add(c.id), true)));
+}
+
+/**
+ * ======= GAME STATE =======
+ */
+let CARDS = []; // loaded from sheet (fresh each load)
+let deckIds = []; // list of remaining card IDs (shuffled)
+let placedBySlot = Array(SLOTS).fill(null); // stores card IDs
+let revealedIds = new Set(); // card IDs already placed (no repeats)
+let currentId = null; // current card ID drawn but not placed
+let chosenSlot = null;
+let round = 0;
+let score = 0;
+let revealedThisRound = false;
+
+// UI elements
+const el = (id) => document.getElementById(id);
+const ui = {
+  round: el("round"), score: el("score"), left: el("left"),
+  name: el("name"), stage: el("stage"), unit: el("unit"), desc: el("desc"),
+  draw: el("draw"), reveal: el("reveal"), next: el("next"), resetRoom: el("resetRoom"),
+  result: el("result"), detail: el("detail"),
+  timeline: el("timeline"),
+  playersInput: el("playersInput"),
+};
+
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function getCardById(id){
+  return CARDS.find(c => c.id === id) || null;
+}
+
+/**
+ * ======= ROOM PERSISTENCE =======
+ * Save/load per room so multiple groups can play independently.
+ */
+function saveRoomState(){
+  const state = {
+    deckIds,
+    placedBySlot,
+    revealedIds: Array.from(revealedIds),
+    currentId,
+    chosenSlot,
+    round,
+    score,
+    revealedThisRound,
+    players: ui.playersInput.value || ""
   };
+  localStorage.setItem(storageKey("state"), JSON.stringify(state));
+}
 
-  function shuffle(a){
-    a = a.slice();
-    for(let i=a.length-1;i>0;i--){
-      const j = Math.floor(Math.random()*(i+1));
-      [a[i],a[j]]=[a[j],a[i]];
+function loadRoomState(){
+  const raw = localStorage.getItem(storageKey("state"));
+  if(!raw) return false;
+
+  try{
+    const state = JSON.parse(raw);
+    deckIds = Array.isArray(state.deckIds) ? state.deckIds : [];
+    placedBySlot = Array.isArray(state.placedBySlot) ? state.placedBySlot : Array(SLOTS).fill(null);
+    revealedIds = new Set(Array.isArray(state.revealedIds) ? state.revealedIds : []);
+    currentId = state.currentId ?? null;
+    chosenSlot = (typeof state.chosenSlot === "number") ? state.chosenSlot : null;
+    round = Number(state.round || 0);
+    score = Number(state.score || 0);
+    revealedThisRound = !!state.revealedThisRound;
+    ui.playersInput.value = state.players || "";
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resetThisRoom(){
+  localStorage.removeItem(storageKey("state"));
+  deckIds = [];
+  placedBySlot = Array(SLOTS).fill(null);
+  revealedIds = new Set();
+  currentId = null;
+  chosenSlot = null;
+  round = 0;
+  score = 0;
+  revealedThisRound = false;
+  ui.result.textContent = "—";
+  ui.detail.textContent = "—";
+  ui.playersInput.value = "";
+}
+
+/**
+ * ======= UI BUILD =======
+ */
+function buildTimeline(){
+  ui.timeline.innerHTML = "";
+  for(let i=0;i<SLOTS;i++){
+    const div = document.createElement("div");
+    div.className = "slot";
+    div.innerHTML = `<div class="muted">Slot ${i+1}</div><div class="slotBody"></div>`;
+    div.addEventListener("click", () => chooseSlot(i));
+    ui.timeline.appendChild(div);
+  }
+}
+
+function render(){
+  ui.round.textContent = round;
+  ui.score.textContent = score;
+
+  const remaining = deckIds.length + (currentId ? 1 : 0);
+  ui.left.textContent = remaining;
+
+  const current = currentId ? getCardById(currentId) : null;
+
+  if(!current){
+    ui.name.textContent="—";
+    ui.stage.textContent="—";
+    ui.unit.textContent="—";
+    ui.desc.innerHTML = `Click <b>Draw</b> to start.`;
+    ui.draw.disabled = (deckIds.length === 0);
+    ui.reveal.disabled = true;
+    ui.next.disabled = true;
+  } else {
+    ui.name.textContent=current.name;
+    ui.stage.textContent=current.stage || "—";
+    ui.unit.textContent=current.unit || "—";
+    ui.desc.textContent = (current.desc || "") + " (data hidden)";
+    ui.draw.disabled = true;
+    ui.reveal.disabled = (chosenSlot === null) || revealedThisRound;
+    ui.next.disabled = !revealedThisRound;
+  }
+
+  // Paint timeline
+  [...ui.timeline.children].forEach((slotEl, idx) => {
+    const body = slotEl.querySelector(".slotBody");
+    body.innerHTML = "";
+    slotEl.style.borderColor = (idx===chosenSlot) ? "#111827" : "#cbd5e1";
+
+    const cardId = placedBySlot[idx];
+    if(cardId){
+      const c = getCardById(cardId);
+      const p = document.createElement("div");
+      p.className = "placed";
+      p.innerHTML = `<div style="font-weight:650">${c ? c.name : cardId}</div>
+                     <div class="muted">${c ? (c.stage||"") : ""} · ${c ? (c.unit||"") : ""}</div>`;
+      body.appendChild(p);
     }
-    return a;
+  });
+
+  saveRoomState();
+}
+
+/**
+ * ======= GAME ACTIONS =======
+ */
+function chooseSlot(i){
+  if(!currentId) return;
+  // Do not allow placing on an occupied slot
+  if(placedBySlot[i]) {
+    ui.result.innerHTML = `<span class="bad">Slot already occupied.</span>`;
+    ui.detail.textContent = "Choose an empty slot.";
+    return;
   }
+  chosenSlot = i;
+  ui.result.textContent = "Ready to reveal.";
+  ui.detail.textContent = `You placed the card in Slot ${i+1}.`;
+  render();
+}
 
-  function buildTimeline(){
-    els.timeline.innerHTML = "";
-    for(let i=0;i<SLOTS;i++){
-      const div = document.createElement("div");
-      div.className = "slot";
-      div.innerHTML = `<div class="muted">Slot ${i+1}</div><div class="slotBody"></div>`;
-      div.addEventListener("click", () => chooseSlot(i));
-      els.timeline.appendChild(div);
-    }
+function drawCard(){
+  if(currentId || deckIds.length === 0) return;
+
+  // Ensure next card is not already revealed/placed
+  while(deckIds.length > 0 && revealedIds.has(deckIds[deckIds.length - 1])) {
+    deckIds.pop();
   }
-
-  function render(){
-    els.round.textContent = round;
-    els.score.textContent = score;
-    els.left.textContent = deck.length + (current ? 1 : 0);
-
-    if(!current){
-      els.name.textContent="—"; els.stage.textContent="—"; els.unit.textContent="—";
-      els.desc.textContent="Saca una carta para empezar.";
-      els.reveal.disabled = true;
-      els.next.disabled = true;
-      els.draw.disabled = (deck.length===0);
-    } else {
-      els.name.textContent=current.name;
-      els.stage.textContent=current.stage;
-      els.unit.textContent=current.unit;
-      els.desc.textContent=current.desc + " (dato oculto)";
-      els.reveal.disabled = (chosen===null);
-      els.next.disabled = !revealed;
-      els.draw.disabled = true;
-    }
-
-    // Pintar timeline
-    [...els.timeline.children].forEach((slotEl, idx) => {
-      const body = slotEl.querySelector(".slotBody");
-      body.innerHTML = "";
-      slotEl.style.borderColor = (idx===chosen) ? "#111827" : "#cbd5e1";
-
-      if(placed[idx]){
-        const p = document.createElement("div");
-        p.className = "placed";
-        p.innerHTML = `<div style="font-weight:650">${placed[idx].name}</div>
-                       <div class="muted">${placed[idx].stage} · ${placed[idx].unit}</div>`;
-        body.appendChild(p);
-      }
-    });
-  }
-
-  function init(){
-    deck = shuffle(CARDS);
-    placed = Array(SLOTS).fill(null);
-    current=null; chosen=null; round=0; score=0; revealed=false;
-    els.result.textContent="—";
-    els.detail.textContent="—";
-    buildTimeline();
+  if(deckIds.length === 0){
+    ui.result.textContent = "No cards left.";
+    ui.detail.textContent = "Reset the room or add more cards to the sheet.";
     render();
+    return;
   }
 
-  function drawCard(){
-    current = deck.pop();
-    chosen = null;
-    revealed = false;
-    round += 1;
-    els.result.textContent = "Ubica la carta en un slot.";
-    els.detail.textContent = "Aún no puedes ver el GWP.";
-    render();
+  currentId = deckIds.pop();
+  chosenSlot = null;
+  revealedThisRound = false;
+  round += 1;
+  ui.result.textContent = "Place the card in an empty slot.";
+  ui.detail.textContent = "You cannot see the impact value yet.";
+  render();
+}
+
+function reveal(){
+  if(!currentId || chosenSlot === null) return;
+
+  // Prevent duplicate placement by ID
+  if(revealedIds.has(currentId)) {
+    ui.result.innerHTML = `<span class="bad">This card is already on the board.</span>`;
+    ui.detail.textContent = "Draw a new card.";
+    return;
   }
 
-  function chooseSlot(i){
-    if(!current) return;
-    if(placed[i]) return; // MVP: no mover cartas ya ubicadas
-    chosen = i;
-    els.result.textContent = "Listo. Ahora revela el dato.";
-    els.detail.textContent = `Ubicaste “${current.name}” en Slot ${i+1}.`;
-    render();
+  // Place card
+  placedBySlot[chosenSlot] = currentId;
+  revealedIds.add(currentId);
+
+  // Validate order consistency with nearest neighbors (lower → higher)
+  const current = getCardById(currentId);
+  const currentVal = current ? current.gwp : NaN;
+
+  const leftIdx = [...Array(chosenSlot).keys()].reverse().find(i => placedBySlot[i]);
+  const rightIdx = [...Array(SLOTS-chosenSlot-1).keys()].map(x=>x+chosenSlot+1).find(i => placedBySlot[i]);
+
+  let ok = true;
+  if(leftIdx !== undefined){
+    const leftCard = getCardById(placedBySlot[leftIdx]);
+    if(leftCard && leftCard.gwp > currentVal) ok = false;
+  }
+  if(rightIdx !== undefined){
+    const rightCard = getCardById(placedBySlot[rightIdx]);
+    if(rightCard && currentVal > rightCard.gwp) ok = false;
   }
 
-  function revealData(){
-    if(!current || chosen===null) return;
+  if(ok){ score += 1; ui.result.innerHTML = `<span class="ok">✅ Correct</span>`; }
+  else { ui.result.innerHTML = `<span class="bad">❌ Not consistent</span>`; }
 
-    // Colocar
-    placed[chosen] = current;
+  ui.detail.textContent = `Revealed GWP: ${currentVal} kgCO₂e / ${current.unit || ""} · Boundary: ${current.stage || ""}`;
 
-    // Validación simple: coherencia con vecinos (menor→mayor)
-    const leftIdx = [...Array(chosen).keys()].reverse().find(i => placed[i]);
-    const rightIdx = [...Array(SLOTS-chosen-1).keys()].map(x=>x+chosen+1).find(i => placed[i]);
+  revealedThisRound = true;
+  ui.reveal.disabled = true;
+  render();
+}
 
-    let ok = true;
-    if(leftIdx !== undefined && placed[leftIdx].gwp > current.gwp) ok = false;
-    if(rightIdx !== undefined && current.gwp > placed[rightIdx].gwp) ok = false;
+function nextRound(){
+  currentId = null;
+  chosenSlot = null;
+  revealedThisRound = false;
+  ui.result.textContent = "—";
+  ui.detail.textContent = "—";
+  render();
+}
 
-    if(ok){ score += 1; els.result.innerHTML = `<span class="ok">✅ Correcto</span>`; }
-    else { els.result.innerHTML = `<span class="bad">❌ No coincide</span>`; }
+/**
+ * ======= INIT =======
+ */
+async function initGame(){
+  buildTimeline();
 
-    els.detail.textContent = `GWP: ${current.gwp} kg CO₂e / ${current.unit}`;
-    revealed = true;
-    els.reveal.disabled = true;
-    render();
+  // Load cards from sheet
+  CARDS = await loadCardsFromSheet();
+
+  // Load room state (if exists)
+  const hasState = loadRoomState();
+
+  // If no prior state, create fresh deck
+  if(!hasState){
+    deckIds = shuffle(CARDS.map(c => c.id));
+    // ensure empty
+    placedBySlot = Array(SLOTS).fill(null);
+    revealedIds = new Set();
+    currentId = null;
+    chosenSlot = null;
+    round = 0;
+    score = 0;
+    revealedThisRound = false;
+  } else {
+    // If sheet changed and some IDs no longer exist, clean safely:
+    const validIds = new Set(CARDS.map(c => c.id));
+    deckIds = deckIds.filter(id => validIds.has(id));
+    placedBySlot = placedBySlot.map(id => (id && validIds.has(id)) ? id : null);
+    revealedIds = new Set([...revealedIds].filter(id => validIds.has(id)));
+    if(currentId && !validIds.has(currentId)) currentId = null;
   }
 
-  function nextRound(){
-    current=null; chosen=null; revealed=false;
-    els.result.textContent="—";
-    els.detail.textContent="—";
-    render();
-  }
+  // Players input autosave
+  ui.playersInput.addEventListener("input", () => saveRoomState());
 
-  // Eventos
-  els.draw.addEventListener("click", drawCard);
-  els.reveal.addEventListener("click", revealData);
-  els.next.addEventListener("click", nextRound);
-  els.reset.addEventListener("click", init);
+  render();
+}
 
-  init();
+// Buttons
+ui.draw.addEventListener("click", drawCard);
+ui.reveal.addEventListener("click", reveal);
+ui.next.addEventListener("click", nextRound);
+ui.resetRoom.addEventListener("click", () => { resetThisRoom(); initGame(); });
+
+initGame();
 </script>
 </body>
 </html>
