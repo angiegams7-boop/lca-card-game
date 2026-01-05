@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LCA Cards (MVP)</title>
+  <style>
+    body{font-family:system-ui,Arial;margin:0;background:#f6f7fb}
+    header{background:#111827;color:#fff;padding:14px 18px}
+    main{max-width:980px;margin:0 auto;padding:16px 18px}
+    .grid{display:grid;grid-template-columns:1fr 1.2fr;gap:14px}
+    .card{background:#fff;border-radius:12px;padding:14px;box-shadow:0 6px 18px rgba(0,0,0,.06)}
+    button{border:0;border-radius:10px;padding:10px 12px;cursor:pointer;background:#111827;color:#fff}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .muted{color:#6b7280;font-size:13px}
+    .big{font-size:18px;margin:8px 0}
+    .timeline{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-top:10px}
+    .slot{min-height:80px;border:2px dashed #cbd5e1;border-radius:12px;padding:8px;background:#fbfdff}
+    .slot:hover{border-color:#111827}
+    .placed{border:1px solid #e5e7eb;border-radius:10px;padding:8px;background:#fff}
+    .ok{color:#065f46;font-weight:700}
+    .bad{color:#991b1b;font-weight:700}
+    .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+    .pill{background:#eef2ff;color:#3730a3;border-radius:999px;padding:4px 8px;font-size:12px}
+  </style>
+</head>
+<body>
+  <header>
+    <div style="font-weight:700;">LCA Cards — ubica primero, revela después</div>
+    <div class="muted" style="color:#cbd5e1">1) Sacar carta → 2) clic en un slot → 3) Revelar</div>
+  </header>
+
+  <main>
+    <div class="grid">
+      <section class="card">
+        <div class="row">
+          <div class="pill">Ronda: <b id="round">0</b></div>
+          <div class="pill">Puntos: <b id="score">0</b></div>
+          <div class="pill">Restantes: <b id="left">0</b></div>
+        </div>
+
+        <hr style="border:none;border-top:1px solid #e5e7eb;margin:12px 0;">
+
+        <div class="muted">Carta actual (dato oculto)</div>
+        <div class="big" id="name">—</div>
+        <div class="row">
+          <div class="pill" id="stage">—</div>
+          <div class="pill" id="unit">—</div>
+        </div>
+        <div class="muted" id="desc" style="margin-top:8px;">Saca una carta para empezar.</div>
+
+        <div class="row" style="margin-top:12px;">
+          <button id="draw">Sacar carta</button>
+          <button id="reveal" disabled>Revelar dato</button>
+          <button id="next" disabled style="background:#e5e7eb;color:#111827;">Siguiente</button>
+          <button id="reset" style="background:#e5e7eb;color:#111827;">Reiniciar</button>
+        </div>
+
+        <hr style="border:none;border-top:1px solid #e5e7eb;margin:12px 0;">
+
+        <div class="muted">Resultado</div>
+        <div class="big" id="result">—</div>
+        <div class="muted" id="detail">—</div>
+      </section>
+
+      <section class="card">
+        <div style="font-weight:700;">Timeline (menor → mayor impacto)</div>
+        <div class="muted">Clic en un slot vacío para ubicar la carta.</div>
+        <div class="timeline" id="timeline"></div>
+      </section>
+    </div>
+  </main>
+
+<script>
+  // 1) Edita aquí tus cartas (GWP solo se muestra al revelar)
+  const CARDS = [
+    {name:"Concrete C30/37", stage:"A1–A3", unit:"1 m³", desc:"Producción de concreto.", gwp:300},
+    {name:"Steel (rebar)", stage:"A1–A3", unit:"1 kg", desc:"Acero de refuerzo.", gwp:1.8},
+    {name:"Aluminum (primary)", stage:"A1–A3", unit:"1 kg", desc:"Aluminio primario.", gwp:9.5},
+    {name:"Timber (CLT)", stage:"A1–A3", unit:"1 m³", desc:"Madera CLT.", gwp:120},
+    {name:"Transport (truck)", stage:"A4", unit:"1 t·km", desc:"Transporte en camión.", gwp:0.12},
+    {name:"Electricity (mix)", stage:"Use", unit:"1 kWh", desc:"Electricidad promedio.", gwp:0.25},
+    {name:"Insulation (mineral wool)", stage:"A1–A3", unit:"1 m²", desc:"Aislante lana mineral.", gwp:2.2},
+  ];
+
+  const SLOTS = 7;
+
+  // Estado del juego
+  let deck = [];
+  let placed = Array(SLOTS).fill(null);
+  let current = null;
+  let chosen = null;
+  let round = 0;
+  let score = 0;
+  let revealed = false;
+
+  // UI
+  const el = (id) => document.getElementById(id);
+  const els = {
+    round: el("round"), score: el("score"), left: el("left"),
+    name: el("name"), stage: el("stage"), unit: el("unit"), desc: el("desc"),
+    draw: el("draw"), reveal: el("reveal"), next: el("next"), reset: el("reset"),
+    result: el("result"), detail: el("detail"),
+    timeline: el("timeline")
+  };
+
+  function shuffle(a){
+    a = a.slice();
+    for(let i=a.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [a[i],a[j]]=[a[j],a[i]];
+    }
+    return a;
+  }
+
+  function buildTimeline(){
+    els.timeline.innerHTML = "";
+    for(let i=0;i<SLOTS;i++){
+      const div = document.createElement("div");
+      div.className = "slot";
+      div.innerHTML = `<div class="muted">Slot ${i+1}</div><div class="slotBody"></div>`;
+      div.addEventListener("click", () => chooseSlot(i));
+      els.timeline.appendChild(div);
+    }
+  }
+
+  function render(){
+    els.round.textContent = round;
+    els.score.textContent = score;
+    els.left.textContent = deck.length + (current ? 1 : 0);
+
+    if(!current){
+      els.name.textContent="—"; els.stage.textContent="—"; els.unit.textContent="—";
+      els.desc.textContent="Saca una carta para empezar.";
+      els.reveal.disabled = true;
+      els.next.disabled = true;
+      els.draw.disabled = (deck.length===0);
+    } else {
+      els.name.textContent=current.name;
+      els.stage.textContent=current.stage;
+      els.unit.textContent=current.unit;
+      els.desc.textContent=current.desc + " (dato oculto)";
+      els.reveal.disabled = (chosen===null);
+      els.next.disabled = !revealed;
+      els.draw.disabled = true;
+    }
+
+    // Pintar timeline
+    [...els.timeline.children].forEach((slotEl, idx) => {
+      const body = slotEl.querySelector(".slotBody");
+      body.innerHTML = "";
+      slotEl.style.borderColor = (idx===chosen) ? "#111827" : "#cbd5e1";
+
+      if(placed[idx]){
+        const p = document.createElement("div");
+        p.className = "placed";
+        p.innerHTML = `<div style="font-weight:650">${placed[idx].name}</div>
+                       <div class="muted">${placed[idx].stage} · ${placed[idx].unit}</div>`;
+        body.appendChild(p);
+      }
+    });
+  }
+
+  function init(){
+    deck = shuffle(CARDS);
+    placed = Array(SLOTS).fill(null);
+    current=null; chosen=null; round=0; score=0; revealed=false;
+    els.result.textContent="—";
+    els.detail.textContent="—";
+    buildTimeline();
+    render();
+  }
+
+  function drawCard(){
+    current = deck.pop();
+    chosen = null;
+    revealed = false;
+    round += 1;
+    els.result.textContent = "Ubica la carta en un slot.";
+    els.detail.textContent = "Aún no puedes ver el GWP.";
+    render();
+  }
+
+  function chooseSlot(i){
+    if(!current) return;
+    if(placed[i]) return; // MVP: no mover cartas ya ubicadas
+    chosen = i;
+    els.result.textContent = "Listo. Ahora revela el dato.";
+    els.detail.textContent = `Ubicaste “${current.name}” en Slot ${i+1}.`;
+    render();
+  }
+
+  function revealData(){
+    if(!current || chosen===null) return;
+
+    // Colocar
+    placed[chosen] = current;
+
+    // Validación simple: coherencia con vecinos (menor→mayor)
+    const leftIdx = [...Array(chosen).keys()].reverse().find(i => placed[i]);
+    const rightIdx = [...Array(SLOTS-chosen-1).keys()].map(x=>x+chosen+1).find(i => placed[i]);
+
+    let ok = true;
+    if(leftIdx !== undefined && placed[leftIdx].gwp > current.gwp) ok = false;
+    if(rightIdx !== undefined && current.gwp > placed[rightIdx].gwp) ok = false;
+
+    if(ok){ score += 1; els.result.innerHTML = `<span class="ok">✅ Correcto</span>`; }
+    else { els.result.innerHTML = `<span class="bad">❌ No coincide</span>`; }
+
+    els.detail.textContent = `GWP: ${current.gwp} kg CO₂e / ${current.unit}`;
+    revealed = true;
+    els.reveal.disabled = true;
+    render();
+  }
+
+  function nextRound(){
+    current=null; chosen=null; revealed=false;
+    els.result.textContent="—";
+    els.detail.textContent="—";
+    render();
+  }
+
+  // Eventos
+  els.draw.addEventListener("click", drawCard);
+  els.reveal.addEventListener("click", revealData);
+  els.next.addEventListener("click", nextRound);
+  els.reset.addEventListener("click", init);
+
+  init();
+</script>
+</body>
+</html>
