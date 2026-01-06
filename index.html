@@ -237,55 +237,37 @@ function findHeaderIndex(headers, predicate){
 async function loadCards(){
   const t = await fetch(SHEET_CSV_URL, { cache: "no-store" }).then(r=>r.text());
   const rows = parseCSV(t).filter(r => r.some(x => (x ?? "").toString().trim() !== ""));
+
+  // Need at least 1 header row + 1 data row
   if(rows.length < 2) return [];
 
-  const headers = rows[0].map(h => (h||"").toString().trim());
+  // Skip header row completely
+  const dataRows = rows.slice(1);
 
-  // Flexible matching for your Base.xlsx-style headers
-  const idxTitle = findHeaderIndex(headers, h => /product\/component name\b/i.test(h) && !/your name/i.test(h));
-  const idxDesc  = findHeaderIndex(headers, h => /name or description/i.test(h));
-  const idxUnit  = findHeaderIndex(headers, h => /^functional unit/i.test(h));
-  const idxQuant = findHeaderIndex(headers, h => /what is being quantified/i.test(h));
-  const idxGWP   = findHeaderIndex(headers, h => /(global warming potential|gwp)/i.test(h));
-  const idxExtra = findHeaderIndex(headers, h => /additional impact categories/i.test(h));
-  const idxAuth  = findHeaderIndex(headers, h => /your name/i.test(h));
+  const cards = dataRows.map((r, i) => {
+    const name  = (r[0] || "").toString().trim();
+    const unit  = (r[1] || "").toString().trim();
+    const quant = (r[2] || "").toString().trim();
+    const gwp   = Number((r[3] || "").toString().replace(",", "."));
+    const extra = (r[4] || "").toString().trim();
+    const authRaw = (r[5] || "").toString().trim();
 
-  const cards = rows.slice(1).map((r, rowNum) => {
-    const title = (idxTitle>=0 ? (r[idxTitle]||"") : "").toString().trim();
-    const desc  = (idxDesc>=0 ? (r[idxDesc]||"")  : "").toString().trim();
-    const unit  = (idxUnit>=0 ? (r[idxUnit]||"")  : "").toString().trim();
-    const quant = (idxQuant>=0 ? (r[idxQuant]||"") : "").toString().trim();
-    const extra = (idxExtra>=0 ? (r[idxExtra]||"") : "").toString().trim();
-
-    const authRaw = (idxAuth>=0 ? (r[idxAuth]||"") : "").toString().trim();
-    const author = extractAuthor(authRaw);
-
-    const gwpStr = (idxGWP>=0 ? (r[idxGWP]||"") : "").toString().trim();
-    const gwp = Number(gwpStr.replace(",", "."));
-
-    const id = `row_${rowNum+1}`;
+    if(!name || Number.isNaN(gwp)) return null;
 
     return {
-      id,
-      name: title || (desc ? desc.slice(0, 60) : `Card ${rowNum+1}`),
-      desc: desc || title || "",
+      id: `row_${i+1}`,
+      name,
+      desc: name,
       unit,
       quantified: quant,
       extra,
-      author,
-      authorNorm: normName(author),
+      author: extractAuthor(authRaw),
+      authorNorm: normName(extractAuthor(authRaw)),
       gwp
     };
-  }).filter(c => c.name && !Number.isNaN(c.gwp));
+  }).filter(Boolean);
 
-  // de-duplicate
-  const seen = new Set();
-  return cards.filter(c => {
-    const k = `${normName(c.name)}|${c.authorNorm}|${c.gwp}`;
-    if(seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
+  return cards;
 }
 
 /* =========================
