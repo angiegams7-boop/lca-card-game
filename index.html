@@ -30,16 +30,17 @@ th,td{border-bottom:1px solid var(--border);padding:6px}
 th{font-size:12px;color:var(--muted)}
 .ok{color:var(--ok);font-weight:900}
 .bad{color:var(--bad);font-weight:900}
+.small{font-size:12px;color:var(--muted);line-height:1.25}
 
 /* Dateline */
 .dateline{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .insert{
-  width:34px;min-height:86px;border:2px dashed var(--border);border-radius:12px;
+  width:34px;min-height:106px;border:2px dashed var(--border);border-radius:12px;
   display:flex;align-items:center;justify-content:center;font-weight:900;color:var(--accent)
 }
 .insert.active{cursor:pointer;border-color:var(--accent)}
 .cardBox{
-  min-width:180px;max-width:240px;border:1px solid var(--border);border-radius:12px;padding:10px;background:#fff;
+  min-width:200px;max-width:280px;border:1px solid var(--border);border-radius:12px;padding:10px;background:#fff;
   display:flex;flex-direction:column;gap:6px
 }
 .cardTitle{font-weight:900}
@@ -48,7 +49,6 @@ th{font-size:12px;color:var(--muted)}
   margin-top:auto;border:0;border-radius:999px;padding:6px 10px;
   background:#fee2e2;color:#991b1b;font-weight:900;cursor:pointer;font-size:12px
 }
-.small{font-size:12px;color:var(--muted)}
 </style>
 </head>
 
@@ -71,10 +71,12 @@ th{font-size:12px;color:var(--muted)}
   <div class="row">
     <span class="pillDark">Cards: <b id="countLabel">0</b>/14</span>
     <span class="pillDark">Round: <b id="roundLabel">0</b></span>
+    <span class="pillDark" id="timerBox">⏱ Time left: —</span>
   </div>
 
   <h4>Players</h4>
   <textarea id="playersInput" placeholder="Ana, Luis, Maria, Johan"></textarea>
+  <div class="small">Rule: you will not draw cards created by yourself (based on the “Your name …” column).</div>
 
   <h4>Scores</h4>
   <table>
@@ -87,10 +89,12 @@ th{font-size:12px;color:var(--muted)}
   <h4>Current card</h4>
   <div id="cardName">—</div>
   <div class="row" style="margin-top:6px;">
-    <span class="pillDark" id="cardStage">—</span>
+    <span class="pillDark" id="cardQuant">—</span>
     <span class="pillDark" id="cardUnit">—</span>
+    <span class="pillDark" id="cardAuthor">—</span>
   </div>
   <p id="cardDesc" class="muted">Click Draw to start.</p>
+  <p id="cardExtra" class="small">—</p>
 
   <div class="row">
     <button class="primary" id="drawBtn">Draw</button>
@@ -105,7 +109,7 @@ th{font-size:12px;color:var(--muted)}
 <!-- RIGHT -->
 <section class="card">
   <strong>Dateline (low → high impact)</strong>
-  <div class="small">Click a <b>+</b> to insert the hidden card. Reveal decides outcome. Remove is available per card.</div>
+  <div class="small">Click a <b>+</b> to insert the hidden card. Reveal ends the turn. Timer does not block the game.</div>
   <div class="dateline" id="dateline"></div>
 </section>
 
@@ -113,23 +117,65 @@ th{font-size:12px;color:var(--muted)}
 </main>
 
 <script>
-/* CONFIG */
+/* =========================
+   CONFIG
+========================= */
 const TARGET = 14;
-const SHEET =
-"https://docs.google.com/spreadsheets/d/e/2PACX-1vT5Pe5AfNwQ8NPGoaKIODSi8aIz7vEnRToALhtfOcxnldJ4fDgXaIGYZNd6lCFYwa0lpEUkuqu9TchH/pub?gid=0&single=true&output=csv";
 
-/* ROOM */
+/* ✅ CSV URL for your NEW base.
+   If your tab is not gid=0, replace gid with the correct number.
+*/
+const SHEET_CSV_URL =
+  "https://docs.google.com/spreadsheets/d/1ZYyJdMcalTNUPRqKyvwnRKu6glU2kuDW/export?format=csv&gid=0";
+
+/* =========================
+   ROOM
+========================= */
 const room = (new URLSearchParams(location.search).get("room") || "G1")
   .replace(/[^a-zA-Z0-9_-]/g,"").slice(0,24) || "G1";
 document.getElementById("roomLabel").textContent = room;
 const key = k => `LCA_${room}_${k}`;
 
-/* STATE */
-let CARDS = [];
-let deck = [];          // array of card objects (shuffled)
-let dateline = [];      // array of card objects in order
-let current = null;     // card object in hand / inserted
-let insertAt = null;    // index where inserted
+/* =========================
+   TIMER (non-blocking)
+========================= */
+let timerInterval = null;
+let timeLeft = 0;
+
+function startTimer(seconds){
+  stopTimer();
+  timeLeft = seconds;
+  updateTimerUI();
+  timerInterval = setInterval(() => {
+    timeLeft--;
+    updateTimerUI();
+    if(timeLeft <= 0){
+      stopTimer();
+      document.getElementById("timerBox").innerHTML = "⏱ Time is up!";
+    }
+  }, 1000);
+}
+function stopTimer(){
+  if(timerInterval){
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+}
+function updateTimerUI(){
+  const min = Math.floor(timeLeft / 60);
+  const sec = timeLeft % 60;
+  document.getElementById("timerBox").innerHTML =
+    `⏱ Time left: ${min}:${sec.toString().padStart(2,"0")}`;
+}
+
+/* =========================
+   STATE
+========================= */
+let CARDS = [];         // full dataset
+let deck = [];          // remaining cards (objects)
+let dateline = [];      // ordered cards (objects)
+let current = null;     // card in hand / inserted
+let insertAt = null;    // index inserted
 let phase = "ready";    // ready | holding | inserted | turn_done
 let round = 0;
 
@@ -137,12 +183,32 @@ let players = [];
 let turn = 0;
 let scores = {};
 
-/* HELPERS */
+/* =========================
+   HELPERS
+========================= */
 const $=id=>document.getElementById(id);
 const shuffle=a=>a.sort(()=>Math.random()-.5);
 const parsePlayers=t=>t.split(",").map(x=>x.trim()).filter(Boolean).slice(0,7);
 
-/* CSV */
+function normName(s){
+  return (s || "")
+    .toString()
+    .toLowerCase()
+    .replace(/\s+/g," ")
+    .trim();
+}
+
+function extractAuthor(raw){
+  const s = (raw || "").toString().replace(/\s+/g," ").trim();
+  if(!s) return "";
+  const cut = s.toLowerCase().indexOf("resource efficient construction");
+  const base = cut >= 0 ? s.slice(0, cut).trim() : s.trim();
+  return base.replace(/\s+and\s*$/i,"").trim();
+}
+
+/* =========================
+   CSV parsing
+========================= */
 function parseCSV(t){
   let r=[],c="",row=[],q=false;
   for(let i=0;i<t.length;i++){
@@ -160,28 +226,70 @@ function parseCSV(t){
   return r;
 }
 
-/* LOAD */
-async function loadCards(){
-  const t = await fetch(SHEET).then(r=>r.text());
-  const rows = parseCSV(t);
-  const h = rows[0].map(x => (x||"").trim());
-  const i = n => h.indexOf(n);
-
-  const cards = rows.slice(1).map(r=>({
-    id: (r[i("Card_ID")]||"").trim(),
-    name: (r[i("Title")]||"").trim(),
-    unit: (r[i("Functional_Unit")]||"").trim(),
-    stage: (r[i("System_Boundary")]||"").trim(),
-    desc: (r[i("Short_Description")]||"").trim(),
-    gwp: Number((r[i("Impact_Value")]||"").trim())
-  })).filter(c=>c.id && c.name && !isNaN(c.gwp));
-
-  // de-duplicate by id
-  const seen = new Set();
-  return cards.filter(c => (seen.has(c.id) ? false : (seen.add(c.id), true)));
+function findHeaderIndex(headers, predicate){
+  for(let i=0;i<headers.length;i++){
+    if(predicate(headers[i])) return i;
+  }
+  return -1;
 }
 
-/* RULE: local consistency with immediate neighbors */
+async function loadCards(){
+  const t = await fetch(SHEET_CSV_URL, { cache: "no-store" }).then(r=>r.text());
+  const rows = parseCSV(t).filter(r => r.some(x => (x ?? "").toString().trim() !== ""));
+  if(rows.length < 2) return [];
+
+  const headers = rows[0].map(h => (h||"").toString().trim());
+
+  // Flexible matching for your Base.xlsx-style headers
+  const idxTitle = findHeaderIndex(headers, h => /product\/component name\b/i.test(h) && !/your name/i.test(h));
+  const idxDesc  = findHeaderIndex(headers, h => /name or description/i.test(h));
+  const idxUnit  = findHeaderIndex(headers, h => /^functional unit/i.test(h));
+  const idxQuant = findHeaderIndex(headers, h => /what is being quantified/i.test(h));
+  const idxGWP   = findHeaderIndex(headers, h => /(global warming potential|gwp)/i.test(h));
+  const idxExtra = findHeaderIndex(headers, h => /additional impact categories/i.test(h));
+  const idxAuth  = findHeaderIndex(headers, h => /your name/i.test(h));
+
+  const cards = rows.slice(1).map((r, rowNum) => {
+    const title = (idxTitle>=0 ? (r[idxTitle]||"") : "").toString().trim();
+    const desc  = (idxDesc>=0 ? (r[idxDesc]||"")  : "").toString().trim();
+    const unit  = (idxUnit>=0 ? (r[idxUnit]||"")  : "").toString().trim();
+    const quant = (idxQuant>=0 ? (r[idxQuant]||"") : "").toString().trim();
+    const extra = (idxExtra>=0 ? (r[idxExtra]||"") : "").toString().trim();
+
+    const authRaw = (idxAuth>=0 ? (r[idxAuth]||"") : "").toString().trim();
+    const author = extractAuthor(authRaw);
+
+    const gwpStr = (idxGWP>=0 ? (r[idxGWP]||"") : "").toString().trim();
+    const gwp = Number(gwpStr.replace(",", "."));
+
+    const id = `row_${rowNum+1}`;
+
+    return {
+      id,
+      name: title || (desc ? desc.slice(0, 60) : `Card ${rowNum+1}`),
+      desc: desc || title || "",
+      unit,
+      quantified: quant,
+      extra,
+      author,
+      authorNorm: normName(author),
+      gwp
+    };
+  }).filter(c => c.name && !Number.isNaN(c.gwp));
+
+  // de-duplicate
+  const seen = new Set();
+  return cards.filter(c => {
+    const k = `${normName(c.name)}|${c.authorNorm}|${c.gwp}`;
+    if(seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+/* =========================
+   RULE: local consistency
+========================= */
 function correct(idx, c){
   const L = idx>0 ? dateline[idx-1] : null;
   const R = idx<dateline.length-1 ? dateline[idx+1] : null;
@@ -190,32 +298,64 @@ function correct(idx, c){
   return true;
 }
 
-/* ANCHOR card revealed at start (no points) */
+/* =========================
+   START anchor (revealed, no points)
+========================= */
 function startAnchor(){
   if(dateline.length===0 && deck.length){
     dateline.push(deck.pop());
   }
 }
 
-/* ACTIONS */
+/* =========================
+   DRAW rule: do NOT show own cards
+========================= */
 function draw(){
-  if(phase!=="ready" || !deck.length || dateline.length>=TARGET) return;
-  current = deck.pop();
+  if(phase!=="ready" || dateline.length>=TARGET) return;
+
+  if(players.length===0){
+    $("feedback").innerHTML = `<span class="bad">Add players first.</span>`;
+    return;
+  }
+  if(deck.length===0){
+    $("feedback").innerHTML = `<span class="bad">No cards left in the deck.</span>`;
+    return;
+  }
+
+  // Start the 3-minute timer for discussion/placement
+  startTimer(180);
+
+  const currentPlayer = players[turn] || "";
+  const pNorm = normName(currentPlayer);
+
+  // Pick first card not authored by current player.
+  // If author field is empty, it's allowed.
+  let idx = deck.findIndex(c => !(c.authorNorm && c.authorNorm === pNorm));
+
+  // Fallback: if all remaining are authored by same player, allow any card
+  if(idx === -1) idx = 0;
+
+  current = deck.splice(idx, 1)[0];
   insertAt = null;
   phase = "holding";
+
   round++;
+  $("feedback").textContent = "—";
   render();
 }
 
 function insert(idx){
   if(phase!=="holding" || !current) return;
-  dateline.splice(idx, 0, current);
+  dateline.splice(idx,0,current);
   insertAt = idx;
   phase = "inserted";
   render();
 }
 
 function reveal(){
+  // stop timer on reveal (non-blocking behavior)
+  stopTimer();
+
   if(phase!=="inserted" || !current || insertAt===null) return;
 
   const ok = correct(insertAt, current);
@@ -228,7 +368,7 @@ function reveal(){
     $("feedback").innerHTML = `<span class="bad">Incorrect (0)</span> — GWP: ${current.gwp}`;
   }
 
-  // End turn. IMPORTANT: we keep the card (even if wrong) because moderator may remove manually.
+  // End turn, keep card (moderator can remove)
   current = null;
   insertAt = null;
   phase = "turn_done";
@@ -237,6 +377,7 @@ function reveal(){
 
 function nextPlayer(){
   if(phase!=="turn_done") return;
+  stopTimer();
   if(players.length){
     turn = (turn + 1) % players.length;
   }
@@ -245,12 +386,9 @@ function nextPlayer(){
   render();
 }
 
-/* Remove any card from dateline (moderator) */
+/* Moderator remove any card */
 function removeFromDateline(index){
   if(index < 0 || index >= dateline.length) return;
-
-  // Keep it safe: during holding/inserted we don't allow removing to avoid breaking insertion flow.
-  // (button will be disabled in UI during those phases)
   const removed = dateline.splice(index, 1)[0];
   if(removed){
     deck.push(removed);
@@ -259,20 +397,26 @@ function removeFromDateline(index){
   render();
 }
 
-/* RENDER */
+/* =========================
+   RENDER
+========================= */
 function renderCurrentPanel(){
   if(!current){
     $("cardName").textContent = "—";
-    $("cardStage").textContent = "—";
+    $("cardQuant").textContent = "—";
     $("cardUnit").textContent = "—";
+    $("cardAuthor").textContent = "—";
     $("cardDesc").textContent = (phase==="ready")
       ? "Click Draw to start your turn."
       : "—";
+    $("cardExtra").textContent = "—";
     return;
   }
+
   $("cardName").textContent = current.name;
-  $("cardStage").textContent = current.stage || "—";
+  $("cardQuant").textContent = current.quantified || "—";
   $("cardUnit").textContent = current.unit || "—";
+  $("cardAuthor").textContent = current.author ? `Author: ${current.author}` : "Author: —";
 
   if(phase==="holding"){
     $("cardDesc").textContent = (current.desc || "") + " (GWP hidden)";
@@ -281,12 +425,17 @@ function renderCurrentPanel(){
   } else {
     $("cardDesc").textContent = current.desc || "—";
   }
+
+  $("cardExtra").textContent = current.extra ? `Extra impacts: ${current.extra}` : "—";
 }
 
 function render(){
   // players + scores
   players = parsePlayers($("playersInput").value);
   players.forEach(p => scores[p] = scores[p] || 0);
+
+  // keep turn in bounds
+  if(players.length && turn >= players.length) turn = 0;
 
   $("turnLabel").textContent = players[turn] || "—";
   $("roundLabel").textContent = round;
@@ -295,7 +444,7 @@ function render(){
   // scores table
   $("scoresBody").innerHTML = "";
   if(players.length===0){
-    $("scoresBody").innerHTML = `<tr><td class="muted">Add players above</td><td class="muted">—</td></tr>`;
+    $("scoresBody").innerHTML = `<tr><td class="small">Add players above</td><td class="small">—</td></tr>`;
   } else {
     players.forEach(p=>{
       $("scoresBody").innerHTML += `<tr><td>${p}</td><td>${scores[p]||0}</td></tr>`;
@@ -313,47 +462,54 @@ function render(){
   // dateline rendering with + inserts
   const d = $("dateline");
   d.innerHTML = "";
-
   const canInsert = (phase==="holding");
-  const canRemove = (phase==="ready" || phase==="turn_done"); // simple + safe
 
   for(let i=0;i<=dateline.length;i++){
-    const ins = document.createElement("div");
-    ins.className = "insert" + (canInsert ? " active" : "");
-    ins.textContent = "+";
-    if(canInsert){
-      ins.onclick = ()=>insert(i);
-    }
+    const ins=document.createElement("div");
+    ins.className="insert"+(canInsert ? " active":"");
+    ins.textContent="+";
+    if(canInsert) ins.onclick=()=>insert(i);
     d.appendChild(ins);
 
     if(i===dateline.length) break;
 
     const c = dateline[i];
-    const box = document.createElement("div");
-    box.className = "cardBox";
-    box.innerHTML = `
+    const box=document.createElement("div");
+    box.className="cardBox";
+    box.innerHTML=`
       <div class="cardTitle">${c.name}</div>
-      <div class="cardMeta"><b>${c.gwp}</b> kgCO₂e · ${c.stage || "—"}</div>
+      <div class="cardMeta"><b>${c.gwp}</b> kgCO₂e</div>
+      <div class="cardMeta">${c.quantified || "—"}</div>
       <div class="cardMeta">${c.unit || "—"}</div>
+      <div class="cardMeta">${c.author ? "Author: " + c.author : "Author: —"}</div>
     `;
 
-    const rm = document.createElement("button");
-    rm.className = "removeMini";
-    rm.textContent = "Remove";
-    rm.disabled = !canRemove;
-    rm.title = canRemove ? "Remove this card (returns to deck)" : "Remove disabled during placement/reveal";
-    rm.onclick = ()=>removeFromDateline(i);
-
+    const rm=document.createElement("button");
+    rm.className="removeMini";
+    rm.textContent="Remove";
+    rm.onclick=()=>removeFromDateline(i);
     box.appendChild(rm);
+
     d.appendChild(box);
+  }
+
+  // end condition
+  if(dateline.length >= TARGET){
+    $("feedback").innerHTML = `<span class="ok">Game complete.</span> Dateline has 14 cards.`;
+    $("drawBtn").disabled = true;
+    $("revealBtn").disabled = true;
+    $("nextBtn").disabled = true;
+    stopTimer();
+    document.getElementById("timerBox").innerHTML = "⏱ Time left: —";
   }
 
   save();
 }
 
-/* STORAGE */
+/* =========================
+   STORAGE
+========================= */
 function save(){
-  // store by id to keep state smaller and robust
   const state = {
     deckIds: deck.map(c=>c.id),
     datelineIds: dateline.map(c=>c.id),
@@ -371,10 +527,8 @@ function save(){
 function load(){
   const raw = localStorage.getItem(key("state"));
   if(!raw) return;
-
   try{
     const s = JSON.parse(raw);
-    // rebuild from ids using CARDS
     const byId = new Map(CARDS.map(c=>[c.id,c]));
     const fromIds = (ids) => (Array.isArray(ids) ? ids.map(id=>byId.get(id)).filter(Boolean) : []);
 
@@ -388,14 +542,24 @@ function load(){
     turn = Number(s.turn || 0);
     scores = (s.scores && typeof s.scores==="object") ? s.scores : {};
     $("playersInput").value = s.playersText || "";
-  } catch {
-    // ignore broken state
-  }
+  } catch {}
 }
 
-/* INIT */
+/* =========================
+   INIT
+========================= */
 (async function(){
   CARDS = await loadCards();
+
+  if(CARDS.length === 0){
+    $("feedback").innerHTML =
+      `<span class="bad">No cards found in the spreadsheet yet.</span> Add at least 1 row and refresh.`;
+    $("drawBtn").disabled = true;
+    $("revealBtn").disabled = true;
+    $("nextBtn").disabled = true;
+    return;
+  }
+
   deck = shuffle([...CARDS]);
   load();
   startAnchor();
@@ -404,7 +568,6 @@ function load(){
   $("revealBtn").onclick = reveal;
   $("nextBtn").onclick = nextPlayer;
   $("resetBtn").onclick = ()=>{ localStorage.removeItem(key("state")); location.reload(); };
-
   $("playersInput").addEventListener("input", ()=>render());
 
   render();
