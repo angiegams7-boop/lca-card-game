@@ -543,8 +543,32 @@ function load(){
     return;
   }
 
+  // Fresh deck by default
   deck = shuffle([...CARDS]);
+
+  // Try to load saved room state
   load();
+
+  // ✅ SAFETY: if saved state is broken/empty, reset it automatically
+  const totalCardsKnown = CARDS.length;
+  const totalInState = (deck?.length || 0) + (dateline?.length || 0) + (current ? 1 : 0);
+
+  // If the saved state does not contain cards, it's probably an old/broken state -> reset.
+  if(totalInState === 0 || totalInState > totalCardsKnown){
+    localStorage.removeItem(key("state"));
+    deck = shuffle([...CARDS]);
+    dateline = [];
+    current = null;
+    insertAt = null;
+    phase = "ready";
+    round = 0;
+    turn = 0;
+    scores = {};
+    stopTimer();
+    $("timerBox").innerHTML = "⏱ Time left: —";
+  }
+
+  // Always ensure there is an anchor card to start
   startAnchor();
 
   $("drawBtn").onclick = draw;
